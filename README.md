@@ -30,7 +30,7 @@ The wow moment is step 5 running live: the agent proposes a long, the `TH-SQZ-LO
 
 **WEEX OpenAPI v3** (`lib/weex.ts`). One module, both paths in the same functions. With `WEEX_API_KEY`, `WEEX_API_SECRET` and `WEEX_API_PASSPHRASE` set, every call is HMAC SHA256 signed (`ACCESS-KEY` / `ACCESS-SIGN` / `ACCESS-TIMESTAMP` / `ACCESS-PASSPHRASE`) and sent to `api-contract.weex.com`. Without them the same functions return shaped mock envelopes so the console is inspectable before the API allowlist clears. Covered: `placeOrder` with preset take profit and stop loss, `uploadAiLog`, and `market/ticker`. `WEEX_VENUE=sim` rewrites `/capi/v3/` to `/capi/v3/sim/`, which is how the shadow run works: every decision fills on sim first, then live, and the console shows both prices side by side.
 
-**uploadAiLog as the ledger, not as paperwork.** WEEX disqualifies teams that cannot produce valid evidence of AI participation, and only allowlisted UIDs may post. Stele writes `stage`, `model`, `input`, `output` and the explanation on every decision including rejections, truncated to the 1000 character limit inside `uploadAiLog()` rather than at the call site. Records the exchange rejects are marked queued and replayed in order once approval lands, and the queue depth is visible in the console header.
+**uploadAiLog as the ledger, not as paperwork.** WEEX disqualifies teams that cannot produce valid evidence of AI participation, and only allowlisted UIDs may post. Stele writes `stage`, `model`, `input`, `output` and the explanation on every decision including rejections, truncated to the 1000 character limit inside `uploadAiLog()` rather than at the call site. The record is written to the store queue before the POST is attempted, so a rejected write is a queued record rather than a lost one. `POST /api/queue` replays the unsent records oldest first and stops at the first refusal, because a trail out of order is not evidence. The queue depth is visible in the console header.
 
 **Anthropic model chain** (`lib/agent.ts`). Three links, tried in order, all returning the same shape: the Anthropic SDK with structured tool output when `ANTHROPIC_API_KEY` is set, then the developer's local `claude` CLI, then a deterministic offline stub. The model does exactly two jobs: confirm the signal satisfies the written precondition, and write the explanation that goes to WEEX. It never sizes the order. Sizing is arithmetic in `lib/valve.ts`, which is why a losing thesis loses its funding whether or not the model still likes it.
 
@@ -40,8 +40,9 @@ The recorded demo must run with `ANTHROPIC_API_KEY` set. The local CLI path exis
 
 - Next.js 15 (App Router), TypeScript strict, Tailwind CSS v4
 - WEEX OpenAPI v3 over `fetch` with `node:crypto` HMAC SHA256 signing, no third party client
-- `@anthropic-ai/sdk` with tool-based structured output
+- `@anthropic-ai/sdk` with tool-based structured output, validated with `zod` before it is trusted
 - Route handler on the Node runtime for the decision loop, deploys to Vercel with no custom server
+- `node:test` for the pure modules: the valve, attribution and the edge schemas
 
 ## Quickstart
 
@@ -55,14 +56,22 @@ Then click **Run decision loop** on the first SOL signal. Its thesis is under wa
 
 With no environment variables at all: WEEX calls return mock fills, the model chain falls to the local `claude` CLI if installed and to the offline stub otherwise. With `ANTHROPIC_API_KEY` set: real model calls. With the three WEEX keys set and `WEEX_VENUE=sim`: real signed calls to the demo futures endpoints.
 
-`npm run build` for a production build. `npm run seed` validates `lib/data/seed.json` and writes `public/seed-manifest.json`.
+```bash
+npm run build   # production build, the deploy gate
+npm test        # node:test over the valve, attribution and the edge schemas
+npm run seed    # validates lib/data/seed.json, writes public/seed-manifest.json
+```
+
+`npm test` runs `node --test tests/*.test.ts` and needs **Node 22.18 or newer**, which strips TypeScript types natively. There is no test build step and no test framework in `devDependencies`.
+
+**`ADAPTER_MODE` picks where the ledger comes from.** `fake`, the default, reads the seed ledger in `lib/data/seed.json`. `real` reads closed positions from WEEX and attributes them: each fill carries the `client_oid` its order went out with, shaped `stele-<thesisId>-<signalId>-<timestamp>`, so the realized PnL lands on the thesis that opened the trade and the valve sizes the next order from a number the agent earned. `lib/store/index.ts` is the only module that reads the variable, and it falls back to the seed when the value is anything but `real` or when the WEEX credentials are missing, so a typo in a dashboard variable degrades to seeded data instead of a 500. The deployed demo and the recording run on `fake`.
 
 ## What we would build next
 
-- Move the ledger from `lib/data/seed.json` to SQLite behind `lib/adapter.ts`, with the attribution job that reads closed fills from `/capi/v3/position/history` and writes realized PnL back to the thesis that opened them. That is the piece that makes the valve real rather than seeded.
-- The local uploadAiLog queue with retry and ordered replay, persisted, so nothing is lost while the allowlist approval is pending.
+- Give the store a real database. Attribution and the log queue are behind the `LedgerStore` interface now, but the seed implementation holds its state at module scope, so a cold Vercel instance starts from the seed values again. The agent loop on the VPS is where a durable ledger belongs.
 - Round rollover: carry the thesis ledger across the five weekly rounds and nothing else, then chart per-thesis equity curves so drift is visible before it becomes drawdown.
 - A signal source per thesis, reading funding and open interest from WEEX market endpoints on a timer, instead of the seeded queue.
+- Refresh without a click: the ledger moves when a position closes, and today that only shows on the next navigation.
 
 ## AI use
 

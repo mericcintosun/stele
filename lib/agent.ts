@@ -10,9 +10,26 @@
 // The model does two jobs and only two: confirm which written thesis a signal
 // belongs to, and write the 1000 character explanation that goes to WEEX. It
 // never sizes the order. Sizing is arithmetic in lib/valve.ts.
+//
+// No prompt text lives in this file. It is all in prompts/decision-record.ts,
+// so changing what the model is asked never means touching the code that calls
+// it. Answers are validated with JudgementSchema and cached by a hash of the
+// prompt, which is what makes two runs of the demo render the same words.
 
 import { spawn } from "node:child_process";
 import Anthropic from "@anthropic-ai/sdk";
+import fixture from "../fixtures/judgement.json";
+import {
+  buildCliSuffix,
+  buildPrompt,
+  SYSTEM_PROMPT,
+  TOOL_DESCRIPTION,
+  TOOL_NAME,
+} from "@/prompts/decision-record";
+import { cacheGet, cacheSet, hashInput } from "./cache";
+import { ANTHROPIC_MODEL, MODEL_TIMEOUT_MS, REQUEST_TIMEOUT_MS, RETRY_COUNT } from "./config";
+import { trace } from "./observability";
+import { JudgementSchema } from "./schemas";
 import type { Signal, Thesis } from "./types";
 import type { ValveVerdict } from "./valve";
 
@@ -28,35 +45,45 @@ export interface AgentJudgement {
   explanation: string;
 }
 
-export const SPONSOR_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-5";
+export const SPONSOR_MODEL = ANTHROPIC_MODEL;
 
-function buildPrompt(signal: Signal, thesis: Thesis, valve: ValveVerdict): string {
-  return [
-    "You are the decision recorder for a WEEX perpetual futures agent.",
-    "Every order must belong to a thesis that was written down before the round started.",
-    "You do not choose position size. A deterministic valve does that from the thesis ledger.",
-    "",
-    `THESIS ${thesis.id} (${thesis.name})`,
-    `Precondition: ${thesis.precondition}`,
-    `Ledger: ${thesis.trades} closed trades, ${thesis.wins} wins, ${thesis.realizedPnlPct.toFixed(2)}% realized on deployed capital, ${thesis.maxDrawdownPct.toFixed(1)}% max drawdown.`,
-    `Quota: ${thesis.quotaUsedUsdt.toFixed(1)} of ${thesis.quotaUsdt.toFixed(0)} USDT used.`,
-    "",
-    `SIGNAL ${signal.id} on ${signal.symbol}`,
-    signal.headline,
-    `Funding ${signal.fundingRatePct.toFixed(4)}%, open interest ${signal.oiChange1hPct.toFixed(1)}% over one hour, proposed side ${signal.suggestedSide}.`,
-    "",
-    `VALVE (already decided, do not argue with it): ${valve.state}, multiplier ${valve.multiplier.toFixed(2)}x. ${valve.reason}`,
-    "",
-    "Answer with: whether the signal satisfies the written precondition, a confidence between 0 and 1,",
-    "and an explanation under 900 characters that names the thesis, states what the ledger says, and",
-    "states what the valve did about it. Write plainly. No marketing language.",
-  ].join("\n");
+/**
+ * The floor under the sponsor path: a realistic record for the SIG-9104 /
+ * TH-SQZ-LONG input, shipped in the repo. It is used only when the model
+ * answered but the answer did not parse, so a malformed response degrades to a
+ * valid record instead of to an exception on the core path.
+ */
+function fromFixture(): AgentJudgement | null {
+  const parsed = JudgementSchema.safeParse(fixture);
+  if (!parsed.success) return null;
+  return {
+    source: "mock",
+    model: `${ANTHROPIC_MODEL} (fixture fallback)`,
+    matches: parsed.data.matches,
+    confidence: parsed.data.confidence,
+    explanation: parsed.data.explanation,
+  };
+}
+
+/** Models sometimes wrap JSON in a fence or trail a sentence after it. */
+function cleanJson(text: string): unknown {
+  const withoutFence = text.replace(/```(?:json)?/gi, "").trim();
+  const start = withoutFence.indexOf("{");
+  const end = withoutFence.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(withoutFence.slice(start, end + 1));
+  } catch {
+    return null;
+  }
 }
 
 /** Path 1: the sponsor SDK. */
 async function viaAnthropic(prompt: string): Promise<AgentJudgement | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
+
+  let candidate: unknown;
 
   try {
     const client = new Anthropic({ apiKey });
@@ -65,49 +92,59 @@ async function viaAnthropic(prompt: string): Promise<AgentJudgement | null> {
     // three fields or nothing. The surface is pinned to a local shape so an SDK
     // minor bump cannot break the build; the runtime call is the normal one.
     const messages = client.messages as unknown as {
-      create: (p: Record<string, unknown>) => Promise<{
-        content: Array<{ type: string; input?: unknown }>;
-      }>;
+      create: (
+        p: Record<string, unknown>,
+        o?: Record<string, unknown>,
+      ) => Promise<{ content: Array<{ type: string; input?: unknown; text?: string }> }>;
     };
 
-    const res = await messages.create({
-      model: SPONSOR_MODEL,
-      max_tokens: 900,
-      system:
-        "You record trading decisions for a compliance log. Be precise and terse. Never invent numbers that were not given to you.",
-      messages: [{ role: "user", content: prompt }],
-      tools: [
-        {
-          name: "record_decision",
-          description: "Record whether the signal satisfies the written thesis precondition.",
-          input_schema: {
-            type: "object",
-            properties: {
-              matches: { type: "boolean" },
-              confidence: { type: "number" },
-              explanation: { type: "string" },
+    const res = await messages.create(
+      {
+        model: ANTHROPIC_MODEL,
+        max_tokens: 900,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: prompt }],
+        tools: [
+          {
+            name: TOOL_NAME,
+            description: TOOL_DESCRIPTION,
+            input_schema: {
+              type: "object",
+              properties: {
+                matches: { type: "boolean" },
+                confidence: { type: "number" },
+                explanation: { type: "string" },
+              },
+              required: ["matches", "confidence", "explanation"],
             },
-            required: ["matches", "confidence", "explanation"],
           },
-        },
-      ],
-      tool_choice: { type: "tool", name: "record_decision" },
-    });
+        ],
+        tool_choice: { type: "tool", name: TOOL_NAME },
+      },
+      // The one outbound deadline for this call site, and exactly one retry.
+      { timeout: MODEL_TIMEOUT_MS, maxRetries: RETRY_COUNT },
+    );
 
     const call = res.content.find((b) => b.type === "tool_use");
-    const input = (call?.input ?? {}) as Partial<AgentJudgement>;
-
-    if (typeof input.explanation !== "string") return null;
-    return {
-      source: "anthropic",
-      model: SPONSOR_MODEL,
-      matches: input.matches !== false,
-      confidence: typeof input.confidence === "number" ? input.confidence : 0.7,
-      explanation: input.explanation.slice(0, 1000),
-    };
+    candidate = call?.input ?? cleanJson(res.content.map((b) => b.text ?? "").join(""));
   } catch {
+    // The API itself failed. Fall through to the next link in the chain.
     return null;
   }
+
+  const parsed = JudgementSchema.safeParse(candidate);
+  if (parsed.success) {
+    return {
+      source: "anthropic",
+      model: ANTHROPIC_MODEL,
+      matches: parsed.data.matches,
+      confidence: parsed.data.confidence,
+      explanation: parsed.data.explanation.slice(0, 1000),
+    };
+  }
+
+  trace("model answered", { source: "anthropic", parse: "failed", fallback: "fixture" });
+  return fromFixture();
 }
 
 /** Path 2: the local CLI, so a developer with no keys still sees a real model answer. */
@@ -115,7 +152,7 @@ let cliAvailable: boolean | null = null;
 
 async function hasClaudeCli(): Promise<boolean> {
   if (cliAvailable !== null) return cliAvailable;
-  cliAvailable = await run("claude", ["--version"], "", 4000)
+  cliAvailable = await run("claude", ["--version"], "", REQUEST_TIMEOUT_MS)
     .then(() => true)
     .catch(() => false);
   return cliAvailable;
@@ -127,8 +164,8 @@ async function viaClaudeCli(prompt: string): Promise<AgentJudgement | null> {
     const text = await run(
       "claude",
       ["-p", "--output-format", "text", "--model", "haiku"],
-      `${prompt}\n\nReply with one paragraph under 900 characters. No preamble.`,
-      45_000,
+      `${prompt}${buildCliSuffix()}`,
+      MODEL_TIMEOUT_MS,
     );
     const explanation = text.trim().slice(0, 1000);
     if (!explanation) return null;
@@ -178,7 +215,15 @@ export async function judge(
   valve: ValveVerdict,
 ): Promise<AgentJudgement> {
   const prompt = buildPrompt(signal, thesis, valve);
-  return (await viaAnthropic(prompt)) ?? (await viaClaudeCli(prompt)) ?? viaMock(signal, thesis, valve);
+  const key = hashInput(prompt);
+
+  const cached = cacheGet<AgentJudgement>(key);
+  if (cached) return cached;
+
+  const answer =
+    (await viaAnthropic(prompt)) ?? (await viaClaudeCli(prompt)) ?? viaMock(signal, thesis, valve);
+
+  return cacheSet(key, answer);
 }
 
 function run(cmd: string, args: string[], stdin: string, timeoutMs: number): Promise<string> {

@@ -44,10 +44,10 @@ You are picking up a warm scaffold. Read this file top to bottom before touching
 
 This repo is a Next.js console over the decision loop. It compiles and runs with zero environment variables.
 
-Layout after Phase 1. Three page routes, three API routes.
+Layout after Phase 2. Three page routes, four API routes.
 
 ```
-DEMO.md                 The 90 second shot list, six steps, each naming its route file.
+DEMO.md                 The 90 second shot list, five steps, step 4 is the wow step.
 CLAUDE.md               Build commands, stack pitfalls, Vercel guardrails, never-touch list.
 app/
   layout.tsx            Title template "%s | Stele", header + SiteNav, dark shell.
@@ -62,10 +62,14 @@ app/
   log/page.tsx          Server. The full uploadAiLog audit trail, queue depth line,
                         empty state. Step 6 of DEMO.md.
   log/loading.tsx       Skeleton panels.
-  api/decide/route.ts   THE CONTROL LOOP. POST { signalId } runs: thesis lookup ->
-                        valve -> model chain -> uploadAiLog -> sim shadow fill ->
-                        live fill. Node runtime, force-dynamic. Returns ApiResponse.
-  api/ledger/route.ts   GET. ApiResponse<{ theses }> from getAdapter().theses().
+  api/decide/route.ts   THE CONTROL LOOP. POST { signalId }, parsed with
+                        DecideRequestSchema first, then: thesis lookup -> valve ->
+                        model chain -> queue the log record -> uploadAiLog ->
+                        sim shadow fill -> live fill -> spendQuota. Node runtime,
+                        force-dynamic. Returns ApiResponse.
+  api/queue/route.ts    GET { depth, records }. POST replays unsent records in
+                        postedAt order and stops at the first refusal.
+  api/ledger/route.ts   GET. ApiResponse<{ theses }> from getStore().listTheses().
   api/log/route.ts      GET. ApiResponse<{ logs, queueDepth }>.
   error.tsx             Names the product, retry button, link to /console. Prints
                         nothing from error.message.
@@ -80,18 +84,46 @@ components/
   DecisionLog.tsx       Client. The uploadAiLog stream with stage/model/input/
                         output/explanation and the WEEX response or queue notice.
 lib/
-  types.ts              Every type, no values. Plus ApiResponse<T> and ConsoleSnapshot.
+  types.ts              Every type, no values. Plus ApiResponse<T>, ConsoleSnapshot
+                        and ClosedFill.
+  config.ts             EVERY CONSTANT. Hosts, v3 paths, timeouts, retry count,
+                        model name, client_oid prefix, allowed symbols. A leaf:
+                        it imports nothing.
+  errors.ts             SteleErrorCode union, SteleError, fail(), STATUS_FOR.
+  schemas.ts            zod at the edges: DecideRequestSchema, QueueReplayRequest
+                        Schema, JudgementSchema, WeexEnvelopeSchema, FillSchema.
   format.ts             usdt(), pct(), stamp(), MONTHS. Locale free on purpose.
+  cache.ts              hashInput() and a module scope Map, so two demo runs of
+                        the same signal render the same explanation.
+  observability.ts      trace(step, detail). One prefixed line per core step.
+  attribution.ts        PURE. parseClientOid(), buildClientOid(),
+                        applyFillToThesis(), attribute(). No I/O, no imports but
+                        types, so node --test loads it with no bundler.
   data/seed.json        The seed values as pure data. Fixed ids, no clock, no random.
   data/seed.ts          seed.json with its types back on, plus thesisById(),
                         signalById(), marketFor().
   data.ts               Tombstone. No exports, nothing imports it. Should be git rm'd.
-  adapter.ts            THE SWAP SEAM. getAdapter() reads ADAPTER_MODE, returns
-                        fakeAdapter (seed) unless the value is exactly "real".
+  adapter.ts            Tombstone. Replaced by lib/store. Should be git rm'd.
+  store/types.ts        THE SWAP SEAM. The LedgerStore interface: reads, quota
+                        spend, applyRealized, the log queue, syncAttribution.
+  store/seed.ts         Seed implementation, module scope state, the permanent
+                        fallback. ledgerState() is shared with the real store.
+  store/weex-store.ts   Reads closed fills from WEEX and attributes them. Every
+                        other method delegates to the seed store.
+  store/index.ts        getStore(). The only module that reads ADAPTER_MODE.
   valve.ts              PURE. Thresholds, valveFor(), sizeOrder(), bracketFor(),
                         verdictFor(). No I/O. This is the mechanism.
-  weex.ts               WEEX OpenAPI v3 client. Server only.
-  agent.ts              The three link model chain. Server only.
+  weex.ts               WEEX OpenAPI v3 client. Server only. withTimeout() wraps
+                        every outbound call, plus closedFills() for attribution.
+  agent.ts              The three link model chain. Server only. Zero prompt text.
+prompts/
+  decision-record.ts    The whole prompt, the system line and the tool name.
+fixtures/
+  judgement.json        The parse failure fallback for the model answer.
+tests/
+  valve.test.ts         Halt line, throttle line, warmup, quota clamp.
+  attribution.test.ts   client_oid grammar, and a losing fill crossing the halt line.
+  schemas.test.ts       Five fixed malformed inputs per edge schema.
 scripts/
   seed.mjs              npm run seed. Validates seed.json invariants, writes
                         public/seed-manifest.json. Deterministic.
@@ -103,15 +135,20 @@ scripts/
 - **`lib/agent.ts` is a real model chain.** `viaAnthropic()` calls `client.messages.create` with a `record_decision` tool and `tool_choice`. `viaClaudeCli()` spawns `claude -p --output-format text --model haiku` with the prompt on stdin, availability cached from `claude --version`. `viaMock()` is the deterministic floor.
 - **`lib/valve.ts` is the finished mechanism.** Halt at -2.0% ledger, throttle at -0.5% or 5% max drawdown, cold start at 0.5x under 6 closed trades, quota clamp, 2% stop with a 2:1 target. Nothing here is stubbed.
 - **`app/api/decide/route.ts` wires all of the above together for real**, including the branch where a rejection still posts to `uploadAiLog`.
+- **Attribution is real** (Phase 2). `lib/attribution.ts` parses the `client_oid` an order went out with, matches the closed fill to the thesis that opened it, adds the realized PnL, recomputes `realizedPnlPct` against deployed capital, increments trades and wins, and tracks the running peak to trough drawdown. A fill that does not parse to a known thesis is skipped, never guessed at, and a fill whose `orderId` was already counted is skipped, so the job is safe to run twice.
+- **The uploadAiLog queue is real** (Phase 2). Every decision writes its record to the store before the POST is attempted, the record is marked sent only on `code: "00000"`, and `POST /api/queue` replays what is unsent in `postedAt` order, stopping at the first refusal.
+- **Quota is spent server side** (Phase 2). `DecisionConsole` no longer moves the ledger with arithmetic of its own; it renders the thesis rows the decide route hands back.
+- **The edges are validated** (Phase 2). Both mutating routes parse their body with a zod schema from `lib/schemas.ts` before any other logic, and every failure answers `{ ok: false, error, hint }` with a code from `lib/errors.ts`.
 
 ### What is mocked, and exactly where
 
-- **`lib/data/seed.json` behind `lib/adapter.ts`** is the entire persistence layer. Thesis ledgers, positions, market rows, signals and prior logs are hand written seed values. There is no database. `realAdapter` is declared and currently delegates to the seed.
+- **`lib/data/seed.json` behind `lib/store/seed.ts` is still the persistence layer.** There is no database. State lives at module scope, so a decision moves the ledger for as long as that server instance stays warm and a cold instance starts from the seed values again. These `LedgerStore` methods read seed fixtures in both stores, `fake` and `real` alike: `listPositions`, `listMarkets`, `listSignals`, `getSignal`, `account`, and the four prior records in `listLogs`. `listTheses`, `getThesis`, `spendQuota`, `applyRealized`, `enqueueLog`, `markLogSent` and `queueDepth` operate on live state, seeded at boot.
+- **`syncAttribution()` returns `{ applied: 0 }` on the seed store** by design. There is no exchange to read, and the seeded ledger is already the finished number. Only `ADAPTER_MODE=real` plus WEEX credentials reaches the real one.
+- **The WEEX position history field names in `closedFills()` are unverified.** `PATH_FILLS` is `/capi/v3/position/history` and the normalizer reads the handful of spellings the v3 surface uses elsewhere. Every row is validated through `FillSchema` and a row that does not parse is dropped. Check this against the live doc before trusting the first real attribution.
 - **`placeOrder()` in `lib/weex.ts`**, inside `if (!hasCredentials())`: returns a deterministic mock fill with fixed slippage (4bp sim, 7bp live) instead of calling WEEX. Marked in place. The live branch below it is complete.
 - **`uploadAiLog()` in `lib/weex.ts`**, inside `if (!hasCredentials())`: returns `{ accepted: false, queued: true }` instead of posting. This is the correct behavior for an un-allowlisted UID too, so it doubles as the queue path.
 - **`lastPrice()` in `lib/weex.ts`**: returns the caller's fallback when there are no credentials.
-- **`viaMock()` in `lib/agent.ts`**: the offline explanation writer.
-- **No attribution job exists.** Nothing reads closed fills and writes realized PnL back to a thesis. The console fakes forward motion by spending quota in `DecisionConsole.evaluate()`. This is the single biggest gap and it is item 1 in the mission.
+- **`viaMock()` in `lib/agent.ts`**: the offline explanation writer. `fixtures/judgement.json` sits above it, used only when the model answered but the answer failed `JudgementSchema`.
 
 ### Order type note
 
@@ -308,3 +345,176 @@ page, route and component above them already reads through the seam.
 
 Before any of that, submit the UID plus static IP allowlist request if it is not already in. Approval
 is manual and the deadline is 2026-09-02 15:59 UTC.
+
+---
+
+## Phase 2 log
+
+**Goal.** Make one mechanism real: thesis attribution and the durable uploadAiLog queue, behind a
+store adapter, with the seed kept as a permanent fallback. Closed fills coming back from WEEX are
+matched to the thesis that opened them by `client_oid`, their realized PnL lands on that thesis
+ledger, and `lib/valve.ts` sizes the next order from a number that was earned rather than typed into
+a seed file.
+
+**Status.** All five slices landed. Nothing was cut. Unverified: every item that needs a command
+(`npm install`, `npm run build`, `npm test`, the Vercel deploy). The Phase 2 agent had Write, Edit,
+Read, Glob and Grep only and could run none of them.
+
+**The mechanism that went real:** attribution, plus the queue write that happens before the POST.
+The wow step still runs on `ADAPTER_MODE=fake`, because the seeded `TH-SQZ-LONG` ledger already reads
+-2.14% over 7 closed trades and the valve does the rest. No branch on the wow path needs
+`ADAPTER_MODE=real`.
+
+### Decisions
+
+- **`zod` added, the one dependency authorized for this phase.** It is at the three edges only: the
+  request bodies, the model answer, the WEEX envelope and the fill rows. Nothing else in the repo
+  imports it.
+- **`lib/adapter.ts` is now a tombstone.** The three method adapter could not express writes, and
+  this phase needed four of them (spend quota, apply realized, enqueue, mark sent). The seam is
+  `LedgerStore` in `lib/store/`, and `lib/store/index.ts` is the only module in the repo that reads
+  `ADAPTER_MODE`. **The runner should `git rm lib/adapter.ts` and `git rm lib/data.ts`;** the agent
+  has no shell and no delete tool.
+- **The real store delegates everything except the ledger to the seed store, on purpose.** WEEX
+  cannot answer "what are my six written theses" or "what is in the signal queue". A real store that
+  returned empty lists for those would blank three panels the moment `ADAPTER_MODE=real` was set.
+- **`lib/attribution.ts` has zero runtime imports, types only.** That is what lets `node --test` load
+  it with no bundler and no environment. The cost is one duplicated literal: the `stele` client_oid
+  prefix appears in `lib/config.ts` as `CLIENT_OID_PREFIX` and again in `attribution.ts` as a default
+  parameter. Every call site in the app passes the config value in explicitly.
+- **Tests build their import specifier at runtime.** Node needs the real `.ts` extension to load a
+  sibling module, `tsconfig.json` is on the never-touch list and `allowImportingTsExtensions` is off
+  there, so a static import ending in `.ts` would fail the build (TS error 5097). The test files
+  build the specifier from a template literal and put the module type back on with a cast. If the
+  never-touch list ever opens, set `allowImportingTsExtensions: true` and make these plain static
+  imports.
+- **The `ApiResponse` failure arm carries `{ error, hint }`.** The code is a `SteleErrorCode` union
+  the console switches on, the hint is for a human. `components/DecisionConsole.tsx` maps each code
+  to one line of copy and never reads message text.
+- **Quota spending moved from the browser to the route.** `DecisionConsole.evaluate()` used to add
+  the notional to the thesis row itself, which is exactly the fake forward motion this phase was
+  meant to remove. The route calls `spendQuota()` and returns the thesis rows.
+- **The queue replay stops at the first refusal.** Replaying record three while record two is still
+  missing puts the evidence trail out of order, and the order is the part that makes it evidence.
+- **`DEMO.md` was rewritten from six steps to the five step shot list** in section 3 above, with step
+  4 marked as the wow step and each step naming the phase that made it real. The phase brief said the
+  file did not exist; it did, from Phase 1.
+
+### Failed attempts
+
+None. The WEEX fills integration stayed inside its 45 minute fence: `closedFills()` is written,
+normalizes the row spellings the v3 surface uses elsewhere and validates every row through
+`FillSchema`, but the field names on `/capi/v3/position/history` are **unverified against the live
+doc**. That is the one thing to check before trusting a real attribution run. It cannot break the
+demo: with no credentials `closedFills()` returns `[]` and the seeded ledger stands.
+
+### Files changed
+
+New: `lib/config.ts`, `lib/errors.ts`, `lib/schemas.ts`, `lib/attribution.ts`, `lib/cache.ts`,
+`lib/observability.ts`, `lib/store/types.ts`, `lib/store/seed.ts`, `lib/store/weex-store.ts`,
+`lib/store/index.ts`, `app/api/queue/route.ts`, `prompts/decision-record.ts`,
+`fixtures/judgement.json`, `tests/valve.test.ts`, `tests/attribution.test.ts`,
+`tests/schemas.test.ts`, `.farm-commits.json`.
+
+Edited: `lib/types.ts`, `lib/weex.ts`, `lib/agent.ts`, `app/console/page.tsx`, `app/log/page.tsx`,
+`app/api/decide/route.ts`, `app/api/ledger/route.ts`, `app/api/log/route.ts`,
+`components/DecisionConsole.tsx`, `components/DecisionLog.tsx`, `package.json`, `.env.example`,
+`DEMO.md`, `README.md`, `HANDOFF.md`.
+
+Tombstoned: `lib/adapter.ts` (joins `lib/data.ts`).
+
+### Commands run
+
+None, the agent has no shell. The runner runs `npm install`, `npm run build` and `npm test`.
+
+### Env keys the runner must fill
+
+No new keys this phase. Every key below already has a line in `.env.example`, and the app builds and
+renders with all of them unset.
+
+- `ADAPTER_MODE` optional, default `fake`. Set to `real` only once the allowlist has landed and there
+  are closed fills to read.
+- `WEEX_API_KEY`, `WEEX_API_SECRET`, `WEEX_API_PASSPHRASE` required for any real call. Without all
+  three, `hasCredentials()` is false and every WEEX function returns its shaped mock.
+- `WEEX_API_HOST` optional, defaults to `https://api-contract.weex.com`.
+- `WEEX_VENUE` optional, defaults to `sim`.
+- `ANTHROPIC_API_KEY` required for the recording, so the header reads "Anthropic API".
+- `ANTHROPIC_MODEL` optional, defaults to `claude-opus-5`.
+
+### Open questions
+
+- **The `realizedPnlPct` denominator disagrees with the seed, and this matters.** The phase brief
+  specifies recomputing the percent against `quotaUsedUsdt`, and `lib/attribution.ts` does that. The
+  seed values use a different denominator: `TH-SQZ-LONG` reads -21.4 USDT at -2.14%, which is
+  -21.4 against about 1000 USDT of cumulative deployed notional, not against the 148.2 USDT of
+  current round quota. So the same closed loss reads roughly eight times larger under attribution
+  than it does in the seed, and the -2.0% halt line trips much sooner in `real` mode than in `fake`.
+  It cuts risk rather than adding it, and the demo is unaffected because `fake` applies nothing, but
+  the two definitions have to be reconciled before a live round. The clean fix is a `deployedUsdt`
+  field on `Thesis` that accumulates notional across trades, separate from the per round quota.
+- **Does the ledger keep `quotaUsdt` per round or cumulative across all five?** Still open from Phase
+  1. The seed treats it as per round, 150 USDT each.
+- **Does `/console` need to refresh without a click?** The ledger now moves when a fill is attributed,
+  and the page only re-reads on navigation. Still no polling and no SSE, deliberately: Phase 3 owns
+  that call.
+- **`app/api/ledger/route.ts` and `app/api/log/route.ts` still have no consumer.** They now read
+  through `getStore()` like everything else, so they are ready for a polling client.
+
+### Acceptance gate, checked by reading files
+
+- **Both stores implement `LedgerStore`, `getStore()` defaults to seed.** `lib/store/seed.ts:70`
+  (`export const seedStore: LedgerStore`), `lib/store/weex-store.ts:21`
+  (`export const weexStore: LedgerStore`), `lib/store/index.ts:21` and `:31`.
+- **No page or client component imports a store implementation.** `app/console/page.tsx:8` and
+  `app/log/page.tsx:11` import `getStore`; the four client components pull no repo module beyond
+  `@/lib/types`, `@/lib/errors` (type only), `@/lib/format`, `@/lib/valve` and each other.
+- **Configuration is in one file.** `lib/config.ts` holds the host, the four v3 paths, the timeouts,
+  the retry count, the model name, the client_oid prefix and the eight allowed symbols. The four env
+  keys it reads (`WEEX_API_HOST`, `WEEX_VENUE`, `ANTHROPIC_MODEL`, `ADAPTER_MODE`) all have a line
+  and a comment in `.env.example`.
+- **Tests.** `tests/valve.test.ts`, `tests/attribution.test.ts`, `tests/schemas.test.ts`.
+  `package.json:10` has `"test": "node --test tests/*.test.ts"`, and README documents it with the
+  Node 22.18 requirement. **Unverified: the agent cannot run it.**
+- **The wow step runs on `fake`.** `lib/store/index.ts:31` returns the seed store by default,
+  `app/api/decide/route.ts:85` calls `valveFor`, `lib/valve.ts:42` halts at `-2.0%`, and the seeded
+  `TH-SQZ-LONG` sits at `-2.14%` (`lib/data/seed.json:21`). Nothing on that path reads the WEEX store.
+- **Both mutating routes validate first.** `app/api/decide/route.ts:57` and
+  `app/api/queue/route.ts:56`, both schemas exported from `lib/schemas.ts`.
+- **Secret boundary.** No `NEXT_PUBLIC_` prefix anywhere in the repo. The three WEEX secrets are read
+  only inside `lib/weex.ts` (`hasCredentials()`, `sign()` and the header block at `:104-110`),
+  `ANTHROPIC_API_KEY` only at `lib/agent.ts:83`, and no file with `"use client"` imports either
+  module.
+- **Timeout and retry constants.** `lib/weex.ts:75` and `:86`, `lib/agent.ts:125`, `:155` and `:168`.
+  One retry, no loop.
+- **Error shape.** `lib/errors.ts:7` is the six member union; every `NextResponse.json` failure in
+  the four routes spreads `fail(code, hint)`.
+- **Model answer parsed, fixture fallback exists.** `lib/agent.ts:135` (`JudgementSchema.safeParse`)
+  and `:147` (`return fromFixture()`), `fixtures/judgement.json`.
+- **Cache and prompts.** `lib/cache.ts:14` (`hashInput`) keyed by the prompt hash,
+  `prompts/decision-record.ts` holds every line of prompt text.
+- **Trace lines.** `store selected` and `store: falling back to seed` in `lib/store/index.ts`,
+  `valve decided`, `model answered`, `shadow fill`, `live fill`, `log queued`, `log accepted` in
+  `app/api/decide/route.ts`, `attribution applied` in `lib/store/weex-store.ts`. Ids, counts and
+  lengths only, no payloads and no keys.
+- **Seed still keeps the console non-empty with zero env vars.** `lib/store/seed.ts` clones the six
+  theses, three positions, three market rows, four signals and four log records at module load.
+
+Honest gaps:
+
+- **Every command is unverified.** `npm install`, `npm run build`, `npm test` and the Vercel deploy
+  are the runner's job. Nothing in this log claims a command was run.
+- **`lib/agent.ts` still contains long string literals in `viaMock()`.** They are the offline stub's
+  output, not prompt text, and the brief said `viaMock()` stays exactly as it is. All prompt text is
+  in `prompts/decision-record.ts`.
+- **The `realizedPnlPct` denominator conflict above is real and unresolved.** It is the one thing in
+  this phase where the spec and the seed data disagree, and the spec was followed.
+- **Two files in the brief do not exist under those names.** The console is `app/console/page.tsx`,
+  not `app/page.tsx` (Phase 1 moved it and `/` is the landing page), and `lib/data.ts` has been a
+  tombstone since Phase 1, so the seed lives in `lib/data/seed.ts`.
+
+### Next best step for Phase 3
+
+Verify `/capi/v3/position/history` against the live doc and fix the field names in `normalizeFill()`
+in `lib/weex.ts` if they differ. That one function is the only thing standing between the current
+build and a real attributed ledger. Then reconcile the `realizedPnlPct` denominator above, because
+the valve reads that number and the valve is the product.

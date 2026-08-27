@@ -1,0 +1,5 @@
+{
+  "matches": true,
+  "confidence": 0.71,
+  "explanation": "Signal SIG-9104 on cmt_solusdt satisfies the written precondition for TH-SQZ-LONG: funding printed -0.0241% for a third consecutive settlement while open interest added 4.8% in an hour. The ledger is what decides the size, and it reads -2.14% over 7 closed trades with a 5.8% max drawdown, which is at or past the -2.0% halt line. The valve multiplier is therefore 0.00x and the order is refused: 0.00 USDT deployed, nothing sent to the exchange. This record is the refusal itself, posted so the exchange holds a receipt for the agent saying no. The thesis stays closed for the rest of the round regardless of how well the setup reads."
+}
