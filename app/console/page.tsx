@@ -1,18 +1,22 @@
 // /console
 //
 // The demo start route. Everything the 90 second sequence needs is on this one
-// screen. It reads through getAdapter() and never imports the seed directly, so
-// Phase 2 swaps the SQLite ledger in without touching this file.
+// screen. It reads through getStore() and never imports the seed directly, so
+// the real ledger swaps in without touching this file.
 
 import DecisionConsole from "@/components/DecisionConsole";
-import { getAdapter } from "@/lib/adapter";
+import { getStore } from "@/lib/store";
 
 export const metadata = { title: "Decision console" };
 
 export const dynamic = "force-dynamic";
 
 export default async function ConsolePage() {
-  const snapshot = await getAdapter().snapshot();
+  const store = getStore();
+  // On the real store this pulls closed fills from WEEX and folds them onto the
+  // ledger first, so the valve states rendered below are attributed numbers.
+  const snapshot = await store.snapshot();
+  const queueDepth = await store.queueDepth();
 
   return (
     <div className="space-y-4">
@@ -30,6 +34,7 @@ export default async function ConsolePage() {
         markets={snapshot.markets}
         signals={snapshot.signals}
         logs={snapshot.logs}
+        queueDepth={queueDepth}
       />
     </div>
   );

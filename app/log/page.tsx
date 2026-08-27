@@ -7,8 +7,8 @@
 // them wide, so a judge can read an explanation without a scrollbar fight.
 
 import Link from "next/link";
-import { getAdapter } from "@/lib/adapter";
 import { stamp } from "@/lib/format";
+import { getStore } from "@/lib/store";
 import type { AiLogRecord } from "@/lib/types";
 
 export const metadata = { title: "Audit trail" };
@@ -75,8 +75,9 @@ function Record({ log }: { log: AiLogRecord }) {
 }
 
 export default async function LogPage() {
-  const logs = await getAdapter().logs();
-  const queueDepth = logs.filter((l) => l.queued).length;
+  const store = getStore();
+  const logs = await store.listLogs();
+  const queueDepth = await store.queueDepth();
 
   return (
     <div className="space-y-4">

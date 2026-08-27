@@ -1,61 +1,17 @@
-// The one seam between the console and where its data comes from. Server only.
+// REPLACED in Phase 2. This file is a tombstone, not a module anyone imports.
 //
-// Today every read resolves to lib/data/seed. In Phase 2 the real ledger lands
-// behind realAdapter() and nothing above this file changes: pages and route
-// handlers call getAdapter() and never import the seed directly.
+// The seam moved from a three method adapter to the LedgerStore interface in
+// lib/store/, because the console needed writes as well as reads: spending
+// quota on an accepted order, folding a closed fill onto a thesis, and holding
+// the uploadAiLog queue.
 //
-// The default is fake on purpose. A Vercel deploy with no environment variables
-// at all has to serve a working /console, because that is what the recorded
-// demo runs on and what a judge opens cold.
+//   lib/store/types.ts      the LedgerStore contract
+//   lib/store/seed.ts       the seed implementation and the permanent fallback
+//   lib/store/weex-store.ts closed fills from WEEX, attributed by client_oid
+//   lib/store/index.ts      getStore(), the only module that picks between them
+//
+// Call getStore(). Nothing in the repo imports this file. The runner should
+// `git rm lib/adapter.ts` along with `lib/data.ts`; the agent has no shell and
+// no delete tool.
 
-import { account, logs, markets, positions, signals, theses } from "./data/seed";
-import type { AiLogRecord, ConsoleSnapshot, Thesis } from "./types";
-
-export interface StelAdapter {
-  mode: "fake" | "real";
-  snapshot(): Promise<ConsoleSnapshot>;
-  theses(): Promise<Thesis[]>;
-  logs(): Promise<AiLogRecord[]>;
-}
-
-export const fakeAdapter: StelAdapter = {
-  mode: "fake",
-  async snapshot() {
-    return { account, theses, positions, markets, signals, logs };
-  },
-  async theses() {
-    return theses;
-  },
-  async logs() {
-    return logs;
-  },
-};
-
-/**
- * Phase 2: read the SQLite ledger written by the VPS agent loop.
- *
- * Declared now so the seam is fixed and the call sites never move. It delegates
- * to the seed until that ledger exists, so setting ADAPTER_MODE=real early
- * degrades to seeded data instead of throwing in production.
- */
-export const realAdapter: StelAdapter = {
-  mode: "real",
-  async snapshot() {
-    // Phase 2: read the SQLite ledger written by the VPS agent loop.
-    return fakeAdapter.snapshot();
-  },
-  async theses() {
-    // Phase 2: read the SQLite ledger written by the VPS agent loop.
-    return fakeAdapter.theses();
-  },
-  async logs() {
-    // Phase 2: read the SQLite ledger written by the VPS agent loop, including
-    // the uploadAiLog queue table and its unsent depth.
-    return fakeAdapter.logs();
-  },
-};
-
-/** Anything other than the exact string "real" is fake. Unset is fake. */
-export function getAdapter(): StelAdapter {
-  return process.env.ADAPTER_MODE === "real" ? realAdapter : fakeAdapter;
-}
+export {};
