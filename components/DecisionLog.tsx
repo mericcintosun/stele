@@ -21,8 +21,18 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function DecisionLog({ logs }: { logs: AiLogRecord[] }) {
-  const queued = logs.filter((l) => l.queued).length;
+interface Props {
+  logs: AiLogRecord[];
+  /**
+   * The store's own count of records the exchange has not accepted. It can be
+   * higher than what this list shows, because the queue holds every record from
+   * the round and this panel renders the current session's stream.
+   */
+  queueDepth?: number;
+}
+
+export default function DecisionLog({ logs, queueDepth }: Props) {
+  const queued = queueDepth ?? logs.filter((l) => l.queued).length;
 
   return (
     <section className="rounded-xl border border-line bg-panel">

@@ -2,16 +2,26 @@
 //
 // The whole control loop in one request:
 //   signal -> written thesis -> valve reads that thesis's ledger -> model writes
-//   the explanation -> uploadAiLog receipt -> sim shadow fill -> live fill.
+//   the explanation -> the log record is queued -> uploadAiLog receipt -> sim
+//   shadow fill -> live fill.
 //
 // A rejection travels the exact same path as an order. That is the point: the
 // exchange gets a receipt for the agent saying no, and that receipt is what
 // makes the ledger auditable evidence of AI participation.
+//
+// The log record is written to the store queue BEFORE the POST is attempted. An
+// un-allowlisted UID is the normal case today, and a record that never left the
+// process is a hole in the evidence trail.
 
 import { NextResponse } from "next/server";
 import { judge } from "@/lib/agent";
-import { marketFor, signalById, thesisById } from "@/lib/data/seed";
-import type { AiLogRecord, ApiResponse, Decision } from "@/lib/types";
+import { buildClientOid } from "@/lib/attribution";
+import { CLIENT_OID_PREFIX } from "@/lib/config";
+import { fail, STATUS_FOR } from "@/lib/errors";
+import { trace } from "@/lib/observability";
+import { DecideRequestSchema } from "@/lib/schemas";
+import { getStore } from "@/lib/store";
+import type { AiLogRecord, ApiResponse, Decision, Thesis } from "@/lib/types";
 import { bracketFor, sizeOrder, valveFor, verdictFor } from "@/lib/valve";
 import {
   hasCredentials,
@@ -31,39 +41,76 @@ interface Wiring {
   weexCredentials: boolean;
   venue: Venue;
   modelPath: Decision["source"];
+  store: "fake" | "real";
+}
+
+interface DecidePayload {
+  decision: Decision;
+  wiring: Wiring;
+  /** The ledger after this decision, so the console renders server truth. */
+  theses: Thesis[];
+  queueDepth: number;
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { signalId?: string };
-  const signal = body.signalId ? signalById(body.signalId) : undefined;
-  if (!signal) {
-    const fail: ApiResponse<never> = { ok: false, error: "unknown signal" };
-    return NextResponse.json(fail, { status: 400 });
+  const raw: unknown = await req.json().catch(() => null);
+  const parsed = DecideRequestSchema.safeParse(raw);
+  if (!parsed.success) {
+    const body: ApiResponse<never> = {
+      ok: false,
+      ...fail("invalid_input", "post a JSON body shaped { signalId: string }"),
+    };
+    return NextResponse.json(body, { status: STATUS_FOR.invalid_input });
   }
 
-  const thesis = thesisById(signal.thesisId);
-  if (!thesis) {
-    const fail: ApiResponse<never> = {
+  const store = getStore();
+  const signal = await store.getSignal(parsed.data.signalId);
+  if (!signal) {
+    const body: ApiResponse<never> = {
       ok: false,
-      error: "signal is not bound to a written thesis",
+      ...fail("invalid_input", `no signal ${parsed.data.signalId} in the queue`),
     };
-    return NextResponse.json(fail, { status: 422 });
+    return NextResponse.json(body, { status: STATUS_FOR.invalid_input });
+  }
+
+  const thesis = await store.getThesis(signal.thesisId);
+  if (!thesis) {
+    const body: ApiResponse<never> = {
+      ok: false,
+      ...fail("unknown_thesis", `signal ${signal.id} is not bound to a written thesis`),
+    };
+    return NextResponse.json(body, { status: STATUS_FOR.unknown_thesis });
   }
 
   const valve = valveFor(thesis);
   const verdict = verdictFor(valve);
   const notionalUsdt = sizeOrder(thesis, valve);
+  trace("valve decided", {
+    thesis: thesis.id,
+    state: valve.state,
+    multiplier: valve.multiplier,
+    notional: notionalUsdt,
+  });
 
-  const reference = marketFor(signal.symbol)?.lastPrice ?? 0;
+  const markets = await store.listMarkets();
+  const reference = markets.find((m) => m.symbol === signal.symbol)?.lastPrice ?? 0;
   const liveVenue = venueFromEnv();
   const entryPrice = await lastPrice(signal.symbol, reference, liveVenue);
   const bracket = bracketFor(entryPrice, signal.suggestedSide);
 
   const judgement = await judge(signal, thesis, valve);
+  trace("model answered", {
+    source: judgement.source,
+    confidence: judgement.confidence,
+    explanation_chars: judgement.explanation.length,
+  });
 
   const stage = verdict === "rejected" ? "rejection" : "order";
   const now = new Date().toISOString();
-  const clientOid = `stele-${signal.id}-${Date.now()}`;
+  // stele-<thesisId>-<signalId>-<timestamp>. This is the only thread back from a
+  // closed fill to the reason that opened it, so lib/attribution.ts can pay the
+  // realized PnL to the right ledger.
+  const clientOid = buildClientOid(thesis.id, signal.id, Date.now(), CLIENT_OID_PREFIX);
 
   // Shadow first, then live. Same decision, two venues, so the demo can put the
   // sim fill and the real fill side by side.
@@ -90,6 +137,7 @@ export async function POST(req: Request) {
       orderId: shadow.orderId,
       filledAt: shadow.filledAt,
     };
+    trace("shadow fill", { thesis: thesis.id, orderId: shadow.orderId, ok: String(shadow.ok) });
 
     if (shadow.ok) {
       const live = await placeOrder(
@@ -111,7 +159,14 @@ export async function POST(req: Request) {
         orderId: live.orderId,
         filledAt: live.filledAt,
       };
+      trace("live fill", { thesis: thesis.id, venue: liveVenue, orderId: live.orderId });
     }
+  }
+
+  // The ledger is the memory. An accepted order spends quota now; realized PnL
+  // lands later, when the position closes and attribution pays it back.
+  if (notionalUsdt > 0 && liveFill) {
+    await store.spendQuota(thesis.id, notionalUsdt);
   }
 
   const output = JSON.stringify({
@@ -124,11 +179,31 @@ export async function POST(req: Request) {
     sl: bracket.stopLoss,
   });
 
+  const input = `${signal.symbol} funding ${signal.fundingRatePct.toFixed(4)}%, OI ${signal.oiChange1hPct.toFixed(1)}% / 1h. ${signal.headline}`;
+
+  const record: AiLogRecord = {
+    id: `LOG-${signal.id.replace("SIG-", "")}-${Date.now().toString().slice(-6)}`,
+    stage,
+    model: judgement.model,
+    thesisId: thesis.id,
+    input,
+    output,
+    explanation: judgement.explanation.slice(0, 1000),
+    orderId: liveFill?.orderId ?? null,
+    postedAt: now,
+    weexResponse: null,
+    queued: true,
+  };
+
+  // Durable first, posted second.
+  await store.enqueueLog(record);
+  trace("log queued", { id: record.id, stage, thesis: thesis.id });
+
   const receipt = await uploadAiLog(
     {
       stage,
       model: judgement.model,
-      input: `${signal.symbol} ${signal.headline} funding=${signal.fundingRatePct}% oi_1h=${signal.oiChange1hPct}%`,
+      input,
       output,
       explanation: judgement.explanation,
       orderId: liveFill?.orderId ?? null,
@@ -136,18 +211,15 @@ export async function POST(req: Request) {
     liveVenue,
   );
 
+  if (receipt.accepted) {
+    await store.markLogSent(record.id, receipt.response);
+    trace("log accepted", { id: record.id, code: receipt.response?.code ?? "00000" });
+  }
+
   const aiLog: AiLogRecord = {
-    id: `LOG-${Date.now().toString().slice(-6)}`,
-    stage,
-    model: judgement.model,
-    thesisId: thesis.id,
-    input: `${signal.symbol} funding ${signal.fundingRatePct.toFixed(4)}%, OI ${signal.oiChange1hPct.toFixed(1)}% / 1h. ${signal.headline}`,
-    output,
-    explanation: judgement.explanation.slice(0, 1000),
-    orderId: liveFill?.orderId ?? null,
-    postedAt: now,
-    weexResponse: receipt.response,
-    queued: receipt.queued,
+    ...record,
+    weexResponse: receipt.accepted ? receipt.response : null,
+    queued: !receipt.accepted,
   };
 
   const decision: Decision = {
@@ -168,7 +240,7 @@ export async function POST(req: Request) {
     liveFill,
   };
 
-  const ok: ApiResponse<{ decision: Decision; wiring: Wiring }> = {
+  const body: ApiResponse<DecidePayload> = {
     ok: true,
     data: {
       decision,
@@ -177,8 +249,11 @@ export async function POST(req: Request) {
         weexCredentials: hasCredentials(),
         venue: liveVenue,
         modelPath: judgement.source,
+        store: store.mode,
       },
+      theses: await store.listTheses(),
+      queueDepth: await store.queueDepth(),
     },
   };
-  return NextResponse.json(ok);
+  return NextResponse.json(body);
 }

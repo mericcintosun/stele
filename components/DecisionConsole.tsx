@@ -3,6 +3,7 @@
 import { useState } from "react";
 import DecisionLog from "@/components/DecisionLog";
 import ThesisLedger from "@/components/ThesisLedger";
+import type { SteleErrorCode } from "@/lib/errors";
 import { pct, stamp, usdt } from "@/lib/format";
 import type {
   AiLogRecord,
@@ -17,14 +18,29 @@ import type {
 import { valveFor } from "@/lib/valve";
 
 interface Props {
-  /** Comes from getAdapter().snapshot(). The console never reads a seed literal. */
+  /** Comes from getStore().snapshot(). The console never reads a seed literal. */
   account: ConsoleSnapshot["account"];
   theses: Thesis[];
   positions: Position[];
   markets: MarketRow[];
   signals: Signal[];
   logs: AiLogRecord[];
+  /** Records the exchange has not accepted yet, counted by the store. */
+  queueDepth: number;
 }
+
+/**
+ * One line per failure code. The console switches on the code the route sends,
+ * never on message text, so server wording can change without breaking the UI.
+ */
+const ERROR_COPY: Record<SteleErrorCode, string> = {
+  invalid_input: "The server does not have that signal. Reload the page and try again.",
+  unknown_thesis: "That signal is not bound to a written thesis, so no order can exist.",
+  parse_failure: "The model answer could not be read. Nothing was sent to the exchange.",
+  not_configured: "This deployment has no WEEX credentials configured.",
+  upstream_timeout: "WEEX did not answer in time. Nothing was sent.",
+  upstream_error: "WEEX refused the request. Nothing was sent.",
+};
 
 const VERDICT_STYLE: Record<Decision["verdict"], string> = {
   approved: "border-acc/50 bg-acc/10 text-acc",
@@ -59,6 +75,7 @@ export default function DecisionConsole(props: Props) {
   const [selectedThesis, setSelectedThesis] = useState<string | null>("TH-SQZ-LONG");
   const [pending, setPending] = useState<string | null>(null);
   const [modelPath, setModelPath] = useState<Decision["source"] | null>(null);
+  const [queueDepth, setQueueDepth] = useState<number>(props.queueDepth);
   const [error, setError] = useState<string | null>(null);
 
   async function evaluate(signal: Signal) {
@@ -75,10 +92,14 @@ export default function DecisionConsole(props: Props) {
       const payload = (await res.json()) as ApiResponse<{
         decision: Decision;
         wiring: { modelPath: Decision["source"] };
+        theses: Thesis[];
+        queueDepth: number;
       }>;
 
-      if (!payload.ok) throw new Error(payload.error);
-      if (!res.ok) throw new Error(`decide failed with ${res.status}`);
+      if (!payload.ok) {
+        setError(ERROR_COPY[payload.error] ?? payload.hint);
+        return;
+      }
 
       const d = payload.data.decision;
 
@@ -86,16 +107,12 @@ export default function DecisionConsole(props: Props) {
       setLogs((prev) => [d.aiLog, ...prev]);
       setHandled((prev) => [...prev, signal.id]);
       setModelPath(payload.data.wiring.modelPath);
+      setQueueDepth(payload.data.queueDepth);
 
-      // The ledger is the memory. Spending quota is the only thing an accepted
-      // order changes until the position closes and PnL is written back.
-      setTheses((prev) =>
-        prev.map((t) =>
-          t.id === d.thesisId
-            ? { ...t, quotaUsedUsdt: Math.round((t.quotaUsedUsdt + d.notionalUsdt) * 10) / 10 }
-            : t,
-        ),
-      );
+      // The ledger comes back from the store, not from arithmetic here. Quota
+      // spent by an accepted order is already charged against the thesis, and
+      // realized PnL lands on it later when attribution reads the closed fill.
+      setTheses(payload.data.theses);
 
       if (d.verdict !== "rejected" && d.liveFill) {
         setPositions((prev) => [
@@ -117,8 +134,9 @@ export default function DecisionConsole(props: Props) {
           ...prev,
         ]);
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "decision failed");
+    } catch {
+      // Network level only. Everything the server can explain arrives as a code.
+      setError("The decision loop could not be reached. Nothing was sent.");
     } finally {
       setPending(null);
     }
@@ -131,6 +149,7 @@ export default function DecisionConsole(props: Props) {
     setDecisions([]);
     setHandled([]);
     setModelPath(null);
+    setQueueDepth(props.queueDepth);
     setError(null);
   }
 
@@ -157,6 +176,12 @@ export default function DecisionConsole(props: Props) {
         </span>
         <span className="text-mut">
           Free <span className="text-ink">{props.account.availableUsdt.toFixed(2)} USDT</span>
+        </span>
+        <span className="text-mut">
+          Queue{" "}
+          <span className={queueDepth > 0 ? "text-warn" : "text-ok"}>
+            {queueDepth > 0 ? `${queueDepth} queued for allowlist` : "all receipts accepted"}
+          </span>
         </span>
         <span className="ml-auto text-mut">
           Model path{" "}
@@ -361,7 +386,7 @@ export default function DecisionConsole(props: Props) {
           </section>
         </div>
 
-        <DecisionLog logs={logs} />
+        <DecisionLog logs={logs} queueDepth={queueDepth} />
       </div>
     </div>
   );
