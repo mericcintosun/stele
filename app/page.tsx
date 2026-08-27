@@ -1,5 +1,4 @@
-import DecisionConsole from "@/components/DecisionConsole";
-import { markets, positions, priorLogs, signals, theses } from "@/lib/data";
+import Link from "next/link";
 
 const HOW_IT_WORKS = [
   {
@@ -74,24 +73,19 @@ export default function Home() {
           reason that keeps losing gets no order at all. You watch what was tried, what was dropped,
           and why, on a single screen.
         </p>
-      </header>
 
-      {/* The console */}
-      <section id="console" className="space-y-4">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-xl font-semibold tracking-tight">Decision console</h2>
-          <p className="font-mono text-[11px] text-mut">
-            live wiring: WEEX OpenAPI v3 + Anthropic model chain
-          </p>
+        <div className="flex flex-wrap items-center gap-4 pt-2">
+          <Link
+            href="/console"
+            className="rounded-lg bg-acc px-4 py-2.5 text-sm font-semibold text-bg transition-opacity hover:opacity-90"
+          >
+            Open the decision console
+          </Link>
+          <Link href="/log" className="text-sm text-mut transition-colors hover:text-acc">
+            Read the audit trail
+          </Link>
         </div>
-        <DecisionConsole
-          theses={theses}
-          positions={positions}
-          markets={markets}
-          signals={signals}
-          logs={priorLogs}
-        />
-      </section>
+      </header>
 
       {/* Problem */}
       <section className="grid gap-6 md:grid-cols-2">
@@ -174,7 +168,7 @@ export default function Home() {
       <section className="space-y-5">
         <h2 className="text-xl font-semibold tracking-tight">What is already out there</h2>
         <div className="overflow-x-auto rounded-xl border border-line bg-panel">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="border-b border-line text-mut">
               <tr>
                 <th className="px-5 py-3 font-normal">Project</th>

@@ -13,7 +13,7 @@
 
 import { spawn } from "node:child_process";
 import Anthropic from "@anthropic-ai/sdk";
-import type { Signal, Thesis } from "./data";
+import type { Signal, Thesis } from "./types";
 import type { ValveVerdict } from "./valve";
 
 export type AgentSource = "anthropic" | "claude-cli" | "mock";

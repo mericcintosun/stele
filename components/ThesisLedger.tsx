@@ -1,6 +1,7 @@
 "use client";
 
-import { pct, stamp, usdt, type Thesis } from "@/lib/data";
+import { pct, stamp, usdt } from "@/lib/format";
+import type { Thesis } from "@/lib/types";
 import { valveFor } from "@/lib/valve";
 
 const STATE_STYLE: Record<string, string> = {

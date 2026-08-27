@@ -44,34 +44,57 @@ You are picking up a warm scaffold. Read this file top to bottom before touching
 
 This repo is a Next.js console over the decision loop. It compiles and runs with zero environment variables.
 
+Layout after Phase 1. Three page routes, three API routes.
+
 ```
+DEMO.md                 The 90 second shot list, six steps, each naming its route file.
+CLAUDE.md               Build commands, stack pitfalls, Vercel guardrails, never-touch list.
 app/
-  layout.tsx            Metadata, dark shell, max-width container.
-  page.tsx              Landing plus the console. Real copy: problem, mechanism,
-                        the four step loop, the three ranking criteria, the
-                        competitor table. Server component.
+  layout.tsx            Title template "%s | Stele", header + SiteNav, dark shell.
+  page.tsx              Landing only. Problem, mechanism, the four step loop, the
+                        three ranking criteria, the competitor table, and a link
+                        to /console. No console render, no seed import.
+  icon.svg              Monochrome slab mark. The one file allowed a literal color.
   globals.css           Tailwind v4 @theme tokens. All color lives here.
+  console/page.tsx      THE DEMO START ROUTE. Server. await getAdapter().snapshot()
+                        into <DecisionConsole>. Never imports the seed directly.
+  console/loading.tsx   Skeleton panels.
+  log/page.tsx          Server. The full uploadAiLog audit trail, queue depth line,
+                        empty state. Step 6 of DEMO.md.
+  log/loading.tsx       Skeleton panels.
   api/decide/route.ts   THE CONTROL LOOP. POST { signalId } runs: thesis lookup ->
                         valve -> model chain -> uploadAiLog -> sim shadow fill ->
-                        live fill. Node runtime, force-dynamic.
-  error.tsx             Template default, untouched.
-  not-found.tsx         Template default, untouched.
+                        live fill. Node runtime, force-dynamic. Returns ApiResponse.
+  api/ledger/route.ts   GET. ApiResponse<{ theses }> from getAdapter().theses().
+  api/log/route.ts      GET. ApiResponse<{ logs, queueDepth }>.
+  error.tsx             Names the product, retry button, link to /console. Prints
+                        nothing from error.message.
+  not-found.tsx         Names the product, link to /console.
 components/
+  SiteNav.tsx           Client. usePathname, links / /console /log, aria-current.
   DecisionConsole.tsx   Client. Holds all session state, calls /api/decide, renders
                         the account strip, market strip, signal queue, decision
-                        stream and the positions table.
+                        stream and the positions table. account comes in as a prop.
   ThesisLedger.tsx      Client. Six theses, ledger row each, valve state badge,
                         quota bar, expandable precondition.
   DecisionLog.tsx       Client. The uploadAiLog stream with stage/model/input/
                         output/explanation and the WEEX response or queue notice.
 lib/
-  data.ts               Types plus all seed data. Six theses, three open positions,
-                        three market rows, four pending signals, four prior log
-                        records, formatting helpers.
+  types.ts              Every type, no values. Plus ApiResponse<T> and ConsoleSnapshot.
+  format.ts             usdt(), pct(), stamp(), MONTHS. Locale free on purpose.
+  data/seed.json        The seed values as pure data. Fixed ids, no clock, no random.
+  data/seed.ts          seed.json with its types back on, plus thesisById(),
+                        signalById(), marketFor().
+  data.ts               Tombstone. No exports, nothing imports it. Should be git rm'd.
+  adapter.ts            THE SWAP SEAM. getAdapter() reads ADAPTER_MODE, returns
+                        fakeAdapter (seed) unless the value is exactly "real".
   valve.ts              PURE. Thresholds, valveFor(), sizeOrder(), bracketFor(),
                         verdictFor(). No I/O. This is the mechanism.
   weex.ts               WEEX OpenAPI v3 client. Server only.
   agent.ts              The three link model chain. Server only.
+scripts/
+  seed.mjs              npm run seed. Validates seed.json invariants, writes
+                        public/seed-manifest.json. Deterministic.
 ```
 
 ### What is real
@@ -83,7 +106,7 @@ lib/
 
 ### What is mocked, and exactly where
 
-- **`lib/data.ts`** is the entire persistence layer. Thesis ledgers, positions, market rows, signals and prior logs are hand written seed values. There is no database.
+- **`lib/data/seed.json` behind `lib/adapter.ts`** is the entire persistence layer. Thesis ledgers, positions, market rows, signals and prior logs are hand written seed values. There is no database. `realAdapter` is declared and currently delegates to the seed.
 - **`placeOrder()` in `lib/weex.ts`**, inside `if (!hasCredentials())`: returns a deterministic mock fill with fixed slippage (4bp sim, 7bp live) instead of calling WEEX. Marked in place. The live branch below it is complete.
 - **`uploadAiLog()` in `lib/weex.ts`**, inside `if (!hasCredentials())`: returns `{ accepted: false, queued: true }` instead of posting. This is the correct behavior for an un-allowlisted UID too, so it doubles as the queue path.
 - **`lastPrice()` in `lib/weex.ts`**: returns the caller's fallback when there are no credentials.
@@ -195,3 +218,93 @@ The console UI already exists. Point it at the database, add polling or SSE so p
 - [ ] WEEX API keys configured, allowlist request submitted, the 11 step API checklist passed on sim.
 - [ ] The AI agent partner Google Form is submitted.
 - [ ] `npm run build` passes.
+
+---
+
+## Phase 1 log
+
+**Goal.** Make the whole 90 second demo path clickable on fake data from a single start route
+(`/console`), and put the four seams Phase 2 has to swap in place so they never move again: the type
+contract, the seed as data, the adapter, and one API response shape.
+
+**Status.** All five slices landed. Nothing was cut. Unverified: every item that needs a command
+(`npm install`, `npm run build`, `npm run seed` twice, the Vercel deploy). The Phase 1 agent had
+Write, Edit, Read, Glob and Grep only and could run none of them.
+
+### Decisions
+
+- **`lib/data.ts` split into four files.** It was types, seed values, lookups and formatters in one
+  module, imported by seven files, three of them client components. That meant every client bundle
+  pulled the entire seed in just to get `stamp()`. It is now `lib/types.ts` (types, no values),
+  `lib/format.ts` (three functions), `lib/data/seed.json` (values as data) and `lib/data/seed.ts`
+  (values with their types back on, plus the three lookups). Seed values live in JSON so
+  `scripts/seed.mjs` can validate them with no TypeScript step, and so Phase 2 can diff a real
+  ledger export against them.
+- **`ADAPTER_MODE` defaults to fake, and anything other than the exact string `"real"` is fake.**
+  The Vercel deploy has to serve a working `/console` with no environment variables set at all,
+  because that is what a judge opens cold and what the recording runs on. A typo in a dashboard
+  variable must degrade to seeded data, not to a 500.
+- **`realAdapter` is declared now and delegates to the seed.** Throwing "not implemented" would make
+  `ADAPTER_MODE=real` a deploy-breaking switch before Phase 2 lands. Delegating keeps the seam
+  visible and the site up.
+- **`ApiResponse<T>` is a discriminated union, not a status code convention.** `/api/decide` keeps
+  its 400 and 422 codes, but the body is now `{ ok: false, error }`, so the client narrows on
+  `payload.ok` and surfaces the server's own message instead of `decide failed with 422`.
+- **`ACCOUNT` became a prop on `DecisionConsole`.** The console is the one screen Phase 2 repoints at
+  the real ledger. It must not read a seed literal, so `/console` passes
+  `snapshot.account` down.
+- **The console moved off `/` onto `/console`.** The landing page now links to it. A judge who lands
+  on `/` reads the pitch; the demo starts one click away and the recording starts already there.
+- **`lib/valve.ts` logic untouched.** Only line 12 changed, `"./data"` to `"./types"`.
+
+### Failed attempts
+
+None. Two things were caught by reading rather than by a build, and both are already fixed:
+
+- `app/api/decide/route.ts` had `const body` for the parsed request and a second `const body` for
+  the response envelope in the same function scope, which is a redeclaration error. The response one
+  is now `ok`, the two early returns use `fail`.
+- The `Wiring` interface in that route is declared but deliberately not exported. Next 15 rejects
+  unexpected exports from a route module.
+
+### Files changed
+
+New: `DEMO.md`, `CLAUDE.md`, `lib/types.ts`, `lib/format.ts`, `lib/adapter.ts`,
+`lib/data/seed.json`, `lib/data/seed.ts`, `scripts/seed.mjs`, `app/console/page.tsx`,
+`app/console/loading.tsx`, `app/log/page.tsx`, `app/log/loading.tsx`, `app/api/ledger/route.ts`,
+`app/api/log/route.ts`, `components/SiteNav.tsx`, `app/icon.svg`.
+
+Edited: `README.md`, `HANDOFF.md`, `.env.example`, `package.json`, `app/page.tsx`,
+`app/layout.tsx`, `app/error.tsx`, `app/not-found.tsx`, `app/api/decide/route.ts`,
+`components/DecisionConsole.tsx`, `components/DecisionLog.tsx`, `components/ThesisLedger.tsx`,
+`lib/valve.ts` (import line only), `lib/agent.ts` (import line only).
+
+Tombstoned: `lib/data.ts`. It now holds a comment and `export {}`, nothing imports it. **The runner
+should `git rm lib/data.ts`.** The Phase 1 agent had no shell and no delete tool.
+
+### Commands run
+
+None, the runner runs them.
+
+### Open questions
+
+- **Should `/console` poll?** It is `force-dynamic` and renders once per request. Phase 2 adds the
+  attribution job, and at that point the ledger changes without a click. Safest default taken for
+  now: no polling, no SSE, server render per navigation. Phase 2 owns that call.
+- **Does the real ledger keep `quotaUsdt` per thesis per round, or cumulative across all five?**
+  The seed treats it as per round (150 USDT each, six theses). `VALVE` reads it either way, but the
+  SQLite schema has to pick one. Safest default assumed: per round, reset on rollover.
+- **`app/api/ledger/route.ts` and `app/api/log/route.ts` are not consumed by any component yet.**
+  Both pages read the adapter directly on the server. The routes exist so the Phase 2 polling client
+  has a stable endpoint to hit. If Phase 2 decides on server actions instead, they can go.
+
+### Next best step for Phase 2
+
+Write `realAdapter` against SQLite, in this order: the `log_queue` table first, because
+`uploadAiLog()` in `lib/weex.ts` already returns `{ queued: true }` for every un-allowlisted post and
+those records are being dropped on the floor today. Then `theses` and `orders` with `client_oid`,
+then the attribution job. The three adapter methods are the only functions that have to change; every
+page, route and component above them already reads through the seam.
+
+Before any of that, submit the UID plus static IP allowlist request if it is not already in. Approval
+is manual and the deadline is 2026-09-02 15:59 UTC.

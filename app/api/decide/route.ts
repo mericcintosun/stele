@@ -10,23 +10,44 @@
 
 import { NextResponse } from "next/server";
 import { judge } from "@/lib/agent";
-import { marketFor, signalById, thesisById, type AiLogRecord, type Decision } from "@/lib/data";
+import { marketFor, signalById, thesisById } from "@/lib/data/seed";
+import type { AiLogRecord, ApiResponse, Decision } from "@/lib/types";
 import { bracketFor, sizeOrder, valveFor, verdictFor } from "@/lib/valve";
-import { hasCredentials, lastPrice, placeOrder, uploadAiLog, venueFromEnv } from "@/lib/weex";
+import {
+  hasCredentials,
+  lastPrice,
+  placeOrder,
+  uploadAiLog,
+  venueFromEnv,
+  type Venue,
+} from "@/lib/weex";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Which path actually ran. The console header prints it so a judge can see.
+// Not exported: Next 15 rejects unexpected exports from a route module.
+interface Wiring {
+  weexCredentials: boolean;
+  venue: Venue;
+  modelPath: Decision["source"];
+}
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { signalId?: string };
   const signal = body.signalId ? signalById(body.signalId) : undefined;
   if (!signal) {
-    return NextResponse.json({ error: "unknown signal" }, { status: 400 });
+    const fail: ApiResponse<never> = { ok: false, error: "unknown signal" };
+    return NextResponse.json(fail, { status: 400 });
   }
 
   const thesis = thesisById(signal.thesisId);
   if (!thesis) {
-    return NextResponse.json({ error: "signal is not bound to a written thesis" }, { status: 422 });
+    const fail: ApiResponse<never> = {
+      ok: false,
+      error: "signal is not bound to a written thesis",
+    };
+    return NextResponse.json(fail, { status: 422 });
   }
 
   const valve = valveFor(thesis);
@@ -147,13 +168,17 @@ export async function POST(req: Request) {
     liveFill,
   };
 
-  return NextResponse.json({
-    decision,
-    // Surfaced in the console header so a judge can see which path actually ran.
-    wiring: {
-      weexCredentials: hasCredentials(),
-      venue: liveVenue,
-      modelPath: judgement.source,
+  const ok: ApiResponse<{ decision: Decision; wiring: Wiring }> = {
+    ok: true,
+    data: {
+      decision,
+      // Surfaced in the console header so a judge can see which path actually ran.
+      wiring: {
+        weexCredentials: hasCredentials(),
+        venue: liveVenue,
+        modelPath: judgement.source,
+      },
     },
-  });
+  };
+  return NextResponse.json(ok);
 }

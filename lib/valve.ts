@@ -9,7 +9,7 @@
 // Pure functions, no I/O. Safe to import from both the server route and the
 // client console.
 
-import type { Thesis } from "./data";
+import type { Thesis } from "./types";
 
 export const VALVE = {
   /** Ledger at or below this percent of deployed capital: the thesis is cut to zero. */

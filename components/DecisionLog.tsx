@@ -1,6 +1,7 @@
 "use client";
 
-import { stamp, type AiLogRecord } from "@/lib/data";
+import { stamp } from "@/lib/format";
+import type { AiLogRecord } from "@/lib/types";
 
 const STAGE_STYLE: Record<string, string> = {
   signal: "border-line bg-panel2 text-mut",
@@ -36,7 +37,7 @@ export default function DecisionLog({ logs }: { logs: AiLogRecord[] }) {
         POST /capi/v3/order/uploadAiLog
       </p>
 
-      <ul className="max-h-[560px] divide-y divide-line overflow-y-auto">
+      <ul className="max-h-[35rem] divide-y divide-line overflow-y-auto">
         {logs.map((log) => (
           <li key={log.id} className="space-y-2 px-4 py-3">
             <div className="flex items-center gap-2">

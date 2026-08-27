@@ -2,6 +2,8 @@
 
 A WEEX perpetual futures agent that ties every order to a named thesis, keeps a realized profit and loss ledger for each one, and cuts the capital of any thesis that is losing money.
 
+The entry screen is **`/console`**: the thesis ledger, the market strip, the open positions, the signal queue and the uploadAiLog stream on one page. `/log` holds the full audit trail. The landing page at `/` explains the mechanism. All three run on seeded data with no environment variables set, so the loop is inspectable before the API allowlist clears. `DEMO.md` walks the 90 second sequence step by step.
+
 > Live demo: https://stele.vercel.app
 >
 > Video: `<ADD_VIDEO_URL>`
@@ -53,11 +55,11 @@ Then click **Run decision loop** on the first SOL signal. Its thesis is under wa
 
 With no environment variables at all: WEEX calls return mock fills, the model chain falls to the local `claude` CLI if installed and to the offline stub otherwise. With `ANTHROPIC_API_KEY` set: real model calls. With the three WEEX keys set and `WEEX_VENUE=sim`: real signed calls to the demo futures endpoints.
 
-`npm run build` for a production build, `npm run seed` is a placeholder until the SQLite ledger lands.
+`npm run build` for a production build. `npm run seed` validates `lib/data/seed.json` and writes `public/seed-manifest.json`.
 
 ## What we would build next
 
-- Move the ledger from `lib/data.ts` to SQLite, with the attribution job that reads closed fills from `/capi/v3/position/history` and writes realized PnL back to the thesis that opened them. That is the piece that makes the valve real rather than seeded.
+- Move the ledger from `lib/data/seed.json` to SQLite behind `lib/adapter.ts`, with the attribution job that reads closed fills from `/capi/v3/position/history` and writes realized PnL back to the thesis that opened them. That is the piece that makes the valve real rather than seeded.
 - The local uploadAiLog queue with retry and ordered replay, persisted, so nothing is lost while the allowlist approval is pending.
 - Round rollover: carry the thesis ledger across the five weekly rounds and nothing else, then chart per-thesis equity curves so drift is visible before it becomes drawdown.
 - A signal source per thesis, reading funding and open interest from WEEX market endpoints on a timer, instead of the seeded queue.

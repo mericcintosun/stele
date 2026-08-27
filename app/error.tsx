@@ -1,16 +1,29 @@
 "use client";
 
+import Link from "next/link";
+
+// error.message is deliberately not printed. It can carry a stack frame or an
+// upstream API string, and neither belongs on a screen a judge is looking at.
 export default function Error({ reset }: { error: Error; reset: () => void }) {
   return (
-    <div className="space-y-3 py-16 text-center">
-      <h2 className="text-xl font-semibold">Something went wrong</h2>
-      <button
-        type="button"
-        onClick={() => reset()}
-        className="rounded-lg bg-acc px-4 py-2 text-sm font-semibold text-black"
-      >
-        Try again
-      </button>
+    <div className="space-y-4 py-16 text-center">
+      <h2 className="text-xl font-semibold">Stele hit an error on this screen</h2>
+      <p className="mx-auto max-w-md text-sm leading-relaxed text-mut">
+        The decision loop itself is unaffected. Retry, or go back to the console and run the signal
+        queue again.
+      </p>
+      <div className="flex flex-wrap items-center justify-center gap-4">
+        <button
+          type="button"
+          onClick={() => reset()}
+          className="rounded-lg bg-acc px-4 py-2 text-sm font-semibold text-bg"
+        >
+          Try again
+        </button>
+        <Link href="/console" className="text-sm text-acc hover:underline">
+          Back to the decision console
+        </Link>
+      </div>
     </div>
   );
 }

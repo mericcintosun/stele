@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <title>Stele</title>
+  <!-- An upright slab: a stone with writing on it, which is what a thesis ledger is.
+       This is an asset, so a literal color is allowed here and nowhere else. -->
+  <g fill="none" stroke="#5eead4" stroke-width="2" stroke-linejoin="round">
+    <path d="M11 28V9a5 5 0 0 1 10 0v19z" />
+  </g>
+  <g fill="#5eead4">
+    <rect x="14" y="12" width="4" height="1.6" rx="0.8" />
+    <rect x="14" y="16" width="4" height="1.6" rx="0.8" />
+    <rect x="14" y="20" width="4" height="1.6" rx="0.8" />
+    <rect x="8" y="28" width="16" height="2.4" rx="1.2" />
+  </g>
+</svg>

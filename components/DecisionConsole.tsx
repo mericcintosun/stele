@@ -3,21 +3,22 @@
 import { useState } from "react";
 import DecisionLog from "@/components/DecisionLog";
 import ThesisLedger from "@/components/ThesisLedger";
-import {
-  ACCOUNT,
-  pct,
-  stamp,
-  usdt,
-  type AiLogRecord,
-  type Decision,
-  type MarketRow,
-  type Position,
-  type Signal,
-  type Thesis,
-} from "@/lib/data";
+import { pct, stamp, usdt } from "@/lib/format";
+import type {
+  AiLogRecord,
+  ApiResponse,
+  ConsoleSnapshot,
+  Decision,
+  MarketRow,
+  Position,
+  Signal,
+  Thesis,
+} from "@/lib/types";
 import { valveFor } from "@/lib/valve";
 
 interface Props {
+  /** Comes from getAdapter().snapshot(). The console never reads a seed literal. */
+  account: ConsoleSnapshot["account"];
   theses: Thesis[];
   positions: Position[];
   markets: MarketRow[];
@@ -71,18 +72,20 @@ export default function DecisionConsole(props: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ signalId: signal.id }),
       });
-      if (!res.ok) throw new Error(`decide failed with ${res.status}`);
-
-      const payload = (await res.json()) as {
+      const payload = (await res.json()) as ApiResponse<{
         decision: Decision;
         wiring: { modelPath: Decision["source"] };
-      };
-      const d = payload.decision;
+      }>;
+
+      if (!payload.ok) throw new Error(payload.error);
+      if (!res.ok) throw new Error(`decide failed with ${res.status}`);
+
+      const d = payload.data.decision;
 
       setDecisions((prev) => [d, ...prev]);
       setLogs((prev) => [d.aiLog, ...prev]);
       setHandled((prev) => [...prev, signal.id]);
-      setModelPath(payload.wiring.modelPath);
+      setModelPath(payload.data.wiring.modelPath);
 
       // The ledger is the memory. Spending quota is the only thing an accepted
       // order changes until the position closes and PnL is written back.
@@ -138,22 +141,22 @@ export default function DecisionConsole(props: Props) {
       {/* Account strip */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-line bg-panel px-4 py-3 font-mono text-xs">
         <span className="text-mut">
-          UID <span className="text-ink">{ACCOUNT.uid}</span>
+          UID <span className="text-ink">{props.account.uid}</span>
         </span>
         <span className="text-mut">
-          Side <span className="text-acc">{ACCOUNT.side}</span>
+          Side <span className="text-acc">{props.account.side}</span>
         </span>
         <span className="text-mut">
           Round{" "}
           <span className="text-ink">
-            {ACCOUNT.round} / {ACCOUNT.totalRounds}
+            {props.account.round} / {props.account.totalRounds}
           </span>
         </span>
         <span className="text-mut">
-          Equity <span className="text-ink">{ACCOUNT.equityUsdt.toFixed(2)} USDT</span>
+          Equity <span className="text-ink">{props.account.equityUsdt.toFixed(2)} USDT</span>
         </span>
         <span className="text-mut">
-          Free <span className="text-ink">{ACCOUNT.availableUsdt.toFixed(2)} USDT</span>
+          Free <span className="text-ink">{props.account.availableUsdt.toFixed(2)} USDT</span>
         </span>
         <span className="ml-auto text-mut">
           Model path{" "}
@@ -320,7 +323,7 @@ export default function DecisionConsole(props: Props) {
               <span className="text-[11px] text-mut">every entry carries exchange-side TP/SL</span>
             </header>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left font-mono text-[11px]">
+              <table className="w-full min-w-[40rem] text-left font-mono text-[11px]">
                 <thead className="text-mut">
                   <tr className="border-b border-line">
                     <th className="px-4 py-2 font-normal">position</th>
