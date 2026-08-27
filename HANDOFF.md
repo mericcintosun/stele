@@ -518,3 +518,209 @@ Verify `/capi/v3/position/history` against the live doc and fix the field names 
 in `lib/weex.ts` if they differ. That one function is the only thing standing between the current
 build and a real attributed ledger. Then reconcile the `realizedPnlPct` denominator above, because
 the valve reads that number and the valve is the product.
+
+---
+
+## Phase 3 log
+
+**Goal.** Make the round server state. Every step of DEMO.md now runs through a persisted round
+snapshot, the refusal in step 4 survives the hard refresh in step 5, and one documented command,
+`npm run demo:reset`, returns the console to the exact opening frame so the recording can be retaken
+until it is clean.
+
+**Status.** All five slices landed. Nothing was cut. Unverified: every item that needs a command
+(`npm install`, `npm run build`, `npm test`, `npm run demo:reset`, the Vercel deploy). The Phase 3
+agent had Write, Edit, Read, Glob and Grep only and could run none of them.
+
+**What went real:** persistence. Before this phase a decision moved a `useState` array in the browser
+and a module scope object on the server, so a reload wiped the refusal, the spent quota and the new
+position. Now `/api/decide` writes all four effects (quota, position, decision, log record) into one
+round snapshot and hands the whole round back, and the console renders that and nothing else.
+
+### The brief was written against a stale picture of the repo
+
+Six files the brief asked for already existed after Phase 2, and building them again would have
+created two of each. Recorded here so the divergence is deliberate rather than a miss:
+
+| Brief asked for | What actually happened |
+| --- | --- |
+| create `lib/config.ts` | already existed. Extended with the two store keys, `storeMode()`, `ROUND_KEY`, `STORE_TIMEOUT_MS`, `BASE_URL` and `DEMO`. |
+| create `lib/errors.ts` with a new code union | already existed with an equivalent union. Added `store_unavailable` and `internal`, plus `errorResponse()`. The Phase 2 codes were kept, so the brief's `bad_request` is `invalid_input`, `unknown_signal` is `invalid_input` and `unbound_thesis` is `unknown_thesis`. |
+| create `lib/validate.ts`, hand written, **do not add zod** | zod was added in Phase 2 and is already at four boundaries. Writing a second parser would mean two validators that can disagree. `lib/validate.ts` exists and exports `parseDecideBody`, `parseAttributeBody`, `parseQueueBody` and `parseEmptyBody`, but each is a thin adapter over the zod schema in `lib/schemas.ts`. **No new dependency was added**, so the fence held. |
+| create `lib/store.ts` | `lib/store/` has been a directory since Phase 2. A sibling `lib/store.ts` would shadow `lib/store/index.ts` for the `@/lib/store` specifier. The persistence lives in **`lib/store/round.ts`** instead, re-exported from `lib/store/index.ts`. |
+| create `lib/seed.ts` from constants in `lib/data.ts` | `lib/data.ts` has been a tombstone since Phase 1. `freshRound()` lives in `lib/store/fresh.ts` and imports the values from `lib/data/seed.ts`. |
+| edit `app/page.tsx` and `components/DecisionConsole.tsx` | `/` is the landing page. The console is `app/console/page.tsx`, which is what was edited. |
+| add an `AbortController` and one retry to `lib/weex.ts` | already there from Phase 2 (`withTimeout`). What was missing was surfacing the failure, so `request()` now returns an `upstream_timeout` envelope instead of throwing out of a route handler. |
+| add `responseCache` to `lib/agent.ts` | `lib/cache.ts` already did this. `responseCache` is now the named, typed door onto it in `lib/agent.ts`, so there is one map, not two. |
+| point `seed` at the reset script | not done. `npm run seed` validates `lib/data/seed.json` and writes `public/seed-manifest.json`, which is a different and still useful job. `npm run demo:reset` is its own script and README says store seeding is lazy. |
+
+### Decisions
+
+- **The store is one JSON blob in a KV service. Decision table row: one small mutable state.** The
+  demo never filters, joins or aggregates; it reads one round whole and rewrites it whole, and the
+  biggest thing in it is six thesis rows. **Postgres was rejected:** a schema, a migration step and a
+  connection pool for a document that is never queried is more machinery than the demo has work for,
+  and a migration is one more thing that can be un-run the hour before a recording. **"None" was
+  rejected:** step 5 of DEMO.md is a hard refresh that has to still show the refusal, and React state
+  does not survive that. The debate is written down here so a later phase does not relitigate it: if
+  the KV work ever starts wanting to become Postgres, the answer is still the blob.
+- **Upstash compatible Redis REST over plain `fetch`, no client library.** `@upstash/redis` would
+  have been a new dependency for four HTTP calls. `lib/store/round.ts` writes them by hand, with the
+  same `AbortController` discipline `lib/weex.ts` uses.
+- **Every KV failure degrades to the memory singleton instead of throwing.** A judge opening the
+  deployed URL with a misconfigured token gets a working console, not a 500. `kvDisabled` latches on
+  the first failure so one bad key does not cost every request a timeout.
+- **A round read off the wire is validated field by field (`isRoundState`) before it is trusted.** A
+  blob written by an older build, or a truncated one, is treated as missing and reseeded rather than
+  rendered half empty.
+- **`freshRound().updatedAt` is a fixed epoch string, not `Date.now()`.** Two resets produce byte
+  identical state, so the first idempotency key of a fresh round is reproducible and two takes of the
+  recording are genuinely the same take.
+- **`/api/decide` writes twice, not once.** Write one carries the quota, the position, the decision,
+  the spent key and the queued log record, and it happens **before** `uploadAiLog` is called. Write
+  two adds the receipt, only if the exchange gave one. Doing it in a single write at the end would
+  have quietly dropped the Phase 2 guarantee that the evidence record is durable before the POST is
+  attempted, which is the whole reason the queue exists.
+- **The decide route mutates the round directly rather than through `LedgerStore.spendQuota()` and
+  `enqueueLog()`.** Those methods each do their own read-modify-write, so calling three of them in a
+  row against a snapshot read at the top of the handler would write from stale state twice. The
+  `LedgerStore` seam is unchanged and still serves `/log`, `/api/queue` and `/api/ledger`; the
+  control loop just owns its own transaction.
+- **The console holds one `RoundView` and nothing else.** `DecisionConsole` no longer computes a
+  position, appends a log record or filters a signal queue against local state. Data enters through
+  one prop and one refresh function. Three sources hand back the identical `RoundView` shape: the
+  server render, `/api/decide` and `/api/round`.
+- **`ConsoleSkeleton` shows only during the reset round trip.** That is the one moment the console
+  has no trustworthy round to draw. Everything else renders the last known round with an error banner
+  over it, because a judge staring at a skeleton learns nothing.
+- **`lib/wiring.ts` was extracted.** The `Wiring` block was an unexported interface inside
+  `/api/decide`; four routes need it now. It gained a `persistence: "kv" | "memory"` field, printed in
+  the console header line, so a judge can see whether the round survives a refresh.
+
+### Failed attempts
+
+None. Two things were caught by reading rather than by a build and are already fixed:
+
+- `let state` and `let written` in `/api/decide` were relying on TypeScript's evolving-`let`
+  inference across a `try`/`catch`. Both are now explicitly `RoundState`.
+- The `/api/attribute` replay branch originally guessed the thesis from `state.positions[0]`, which
+  is arbitrary once the position has been removed. `AttributePayload.thesis` is now `Thesis | null`
+  and a replay answers `null`.
+
+### Files changed
+
+New: `lib/store/round.ts`, `lib/store/fresh.ts`, `lib/validate.ts`, `lib/wiring.ts`,
+`components/ConsoleStates.tsx`, `app/api/round/route.ts`, `app/api/reset/route.ts`,
+`app/api/attribute/route.ts`, `scripts/demo-reset.mjs`, `.farm-commits.json`.
+
+Edited: `lib/config.ts`, `lib/types.ts`, `lib/errors.ts`, `lib/schemas.ts`, `lib/agent.ts`,
+`lib/weex.ts`, `lib/store/seed.ts`, `lib/store/weex-store.ts`, `lib/store/index.ts`,
+`app/api/decide/route.ts`, `app/api/queue/route.ts`, `app/api/ledger/route.ts`,
+`app/api/log/route.ts`, `app/console/page.tsx`, `components/DecisionConsole.tsx`, `package.json`,
+`.env.example`, `DEMO.md`, `README.md`, `HANDOFF.md`.
+
+Still tombstoned and still needing `git rm`: `lib/data.ts`, `lib/adapter.ts`.
+
+The section 2 tree above is from Phase 2 and is now out of date in three places: `lib/store/` gained
+`round.ts` and `fresh.ts`, `lib/store/seed.ts` no longer holds module scope state and no longer
+exports `ledgerState()`, and there are seven API routes rather than four.
+
+### Commands run
+
+None, the agent cannot run commands. The runner runs `npm install`, `npm run build` and `npm test`.
+
+### Env keys the runner must fill
+
+Two new keys, **both optional**, both server only, neither with a `NEXT_PUBLIC_` prefix:
+
+- `KV_REST_API_URL` and `KV_REST_API_TOKEN`. Set both in Vercel if the persisted demo is wanted in
+  production. Without them the deploy still walks the whole of DEMO.md on the memory fallback, but
+  the round does not survive a cold lambda. Any Upstash compatible Redis REST endpoint works.
+- `STELE_BASE_URL`, read only by `scripts/demo-reset.mjs`, defaults to `http://localhost:3000`.
+
+### Open questions
+
+- **Should the round write be a compare and set?** `writeRound()` is a plain overwrite. One blob and
+  one demo operator means a lost update is not reachable today, and two concurrent identical
+  `/api/decide` calls are caught by the idempotency key rather than by the write. Two agent processes
+  writing the same round would need `SET ... NX` plus a version field. Safest default taken: plain
+  overwrite, and the gap is written into README under "What we would build next".
+- **Does the round key need a TTL?** No expiry is set, so a KV database keeps the last round forever.
+  That is what makes the demo re-openable a day later, and `npm run demo:reset` is the eraser. If the
+  five competition rounds each want their own key, `ROUND_KEY` is the one constant to change.
+- **`/api/attribute` has no UI.** There is no Close position control in the console, so the route is
+  exercised by curl only. The 90 second script does not close a position, so this was the right place
+  to stop, but a judge cannot see the loop close on screen.
+- **The `realizedPnlPct` denominator conflict from Phase 2 is still open and still unresolved.**
+  `/api/attribute` calls the same `applyFillToThesis()`, so it inherits the same disagreement with
+  the seed values. Reconcile before a live round.
+- **Does `/console` need to refresh without a click?** Still no polling and still no SSE,
+  deliberately. The client now has a real refresh path (`GET /api/round`, wired to the retry button),
+  so adding a timer is one `setInterval` if a later phase wants it.
+
+### Acceptance gate, checked by reading files
+
+- **Each DEMO.md step names a real file and each has a fallback branch in that same file.** Step 1
+  `app/console/page.tsx` plus the self-seed in `lib/store/round.ts:132` (`readRound`). Steps 2 and 3
+  `app/api/decide/route.ts`, falling back through `viaMock()` at `lib/agent.ts:198` and the
+  `if (!hasCredentials())` branch in `placeOrder()` at `lib/weex.ts:198`. Step 4 `lib/valve.ts:42`
+  plus `uploadAiLog()`'s credential free branch at `lib/weex.ts:272`. Step 5 `lib/store/round.ts`
+  plus its `memory` singleton at `:42`.
+- **Persistence exists only in `lib/store/round.ts`.** It is the only file matching `KV_REST_API`
+  outside `lib/config.ts` and `.env.example` (verified by grep). No route and no component imports a
+  driver. The decision table row and the two rejected rows are written up under Decisions above.
+- **No runtime filesystem write.** `node:fs` appears once in the repo, at `scripts/seed.mjs:12`.
+  `scripts/demo-reset.mjs` uses `fetch` only.
+- **Store credentials are server only and in `.env.example`** at `:33` and `:34`, with a comment
+  saying both are optional. No `NEXT_PUBLIC_` prefix anywhere in the repo.
+- **`readRound()` self-seeds from `lib/store/fresh.ts`**, so every surface is non-empty with zero env
+  set. There is no auth screen and no faucet on the demo path. There is no chain fixture at all:
+  there is no `contracts/` directory, no wallet, no testnet and nothing to fund. The WEEX sim venue
+  plus the credential free mock path in `lib/weex.ts` is the whole funding story.
+- **`components/ConsoleStates.tsx` exports `ConsoleSkeleton`, `ConsoleErrorState` (with a retry
+  button bound to `refresh()`, which refetches `GET /api/round`) and `SignalQueueEmptyState` (with a
+  Reset round call to action).** `components/DecisionConsole.tsx` imports all three and renders all
+  three.
+- **The run control is disabled by the pending state** (`disabled={pending !== null}` on both the Run
+  decision loop button and the Reset round button), and `app/api/decide/route.ts:88` holds the
+  `alreadyDecided` check against `state.seenKeys` before any `placeOrder` or `uploadAiLog` call.
+- **Every route validates through `lib/validate.ts` and fails through `lib/errors.ts`.**
+  `/api/decide` `parseDecideBody`, `/api/attribute` `parseAttributeBody`, `/api/reset`
+  `parseEmptyBody`, `/api/queue` `parseQueueBody`. `/api/round` and `/api/ledger` and `/api/log` are
+  GETs with no body. No route file constructs a raw `NextResponse.json({ error: ... })` any more;
+  every failure goes through `errorResponse()`.
+- **No demo data enters through chained client effects.** `app/console/page.tsx:34` passes the round
+  in as `initial`, read server side at `:23`. `DecisionConsole` has zero `useEffect` calls.
+- **No `<img>` on the demo path.** Grep finds none in the repo.
+- **`demo:reset` exists** at `package.json:10` and `scripts/demo-reset.mjs` posts to `/api/reset`.
+  **There is no chain fixture to reset.** WEEX sim orders placed during a rehearsal are **not** rolled
+  back, and that is fine: DEMO.md never reads them back, and `placeOrder()` returns a mock fill
+  entirely unless all three WEEX keys are set.
+- **README documents store setup** under "Store setup" and says in bold that there is no migration
+  command in this build.
+- **Every import added this phase resolves to a file that exists**, checked by grepping every import
+  specifier under `app/`, `components/` and `lib/`.
+- **`lib/valve.ts` arithmetic is unchanged.** The file was not opened for editing this phase.
+
+Honest gaps:
+
+- **Every command is unverified.** `npm install`, `npm run build`, `npm test`, `npm run demo:reset`
+  and the Vercel deploy are the runner's job. Nothing in this log claims a command was run.
+- **The KV path has never been exercised.** The Upstash REST shapes used (`GET /get/<key>` returning
+  `{ result: string | null }`, `POST /set/<key>` with the value as the raw body) are written from the
+  documented API, not from a live call. If they are wrong, `loadFromKv()` sets `kvDisabled` and the
+  console runs on memory, so a mistake here degrades rather than breaks. **Check the first deploy's
+  logs for `store: falling back to memory`.**
+- **`/api/attribute` is untested end to end** and has no UI.
+
+### Next best step for Phase 4
+
+Set `KV_REST_API_URL` and `KV_REST_API_TOKEN` on the deploy, open `/console`, run one signal, hard
+refresh, and confirm the decision is still there. That single check validates the whole phase. If the
+trace line `store: falling back to memory` appears in the Vercel logs, the REST shapes in
+`lib/store/round.ts` need correcting against the Upstash doc, and that file is the only thing that
+changes.
+
+After that, the two items that were true before this phase and are still true: verify
+`/capi/v3/position/history` field names against the live doc, and reconcile the `realizedPnlPct`
+denominator, because the valve reads that number and the valve is the product.
