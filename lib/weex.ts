@@ -12,16 +12,31 @@
 //   ACCESS-SIGN = base64(hmacSha256(prehash, apiSecret))
 // Verify this against the live doc before the first real order. If WEEX changes
 // the prehash order, this is the only function that has to move.
+//
+// Every outbound call goes through withTimeout(): one AbortController at
+// REQUEST_TIMEOUT_MS, then exactly RETRY_COUNT retry. Both constants come from
+// lib/config.ts. There is no loop, so a dead endpoint cannot hold a request
+// handler open.
 
 import { createHmac } from "node:crypto";
-
-const HOST = process.env.WEEX_API_HOST ?? "https://api-contract.weex.com";
+import {
+  PATH_FILLS,
+  PATH_PLACE_ORDER,
+  PATH_TICKER,
+  PATH_UPLOAD_AI_LOG,
+  REQUEST_TIMEOUT_MS,
+  RETRY_COUNT,
+  WEEX_HOST,
+  WEEX_VENUE,
+} from "./config";
+import { FillSchema, WeexEnvelopeSchema } from "./schemas";
+import type { ClosedFill } from "./types";
 
 /** "sim" routes through the demo futures endpoints, "live" through production. */
 export type Venue = "sim" | "live";
 
 export function venueFromEnv(): Venue {
-  return process.env.WEEX_VENUE === "live" ? "live" : "sim";
+  return WEEX_VENUE === "live" ? "live" : "sim";
 }
 
 export function hasCredentials(): boolean {
@@ -48,6 +63,31 @@ interface WeexEnvelope<T> {
   data: T | null;
 }
 
+/**
+ * One bounded attempt, then exactly one retry. The retry re-signs, because the
+ * prehash carries a timestamp and a stale one is rejected. Repeating a
+ * placeOrder is safe against the exchange because every order carries a
+ * client_oid, which is also what attribution matches on later.
+ */
+async function withTimeout(attempt: (signal: AbortSignal) => Promise<Response>): Promise<Response> {
+  const once = async (): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      return await attempt(controller.signal);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  try {
+    return await once();
+  } catch (first) {
+    if (RETRY_COUNT < 1) throw first;
+    return await once();
+  }
+}
+
 async function request<T>(
   method: "GET" | "POST",
   path: string,
@@ -56,24 +96,51 @@ async function request<T>(
 ): Promise<WeexEnvelope<T>> {
   const requestPath = pathFor(path, venue);
   const body = method === "POST" && payload ? JSON.stringify(payload) : "";
-  const timestamp = Date.now().toString();
 
-  const res = await fetch(`${HOST}${requestPath}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "ACCESS-KEY": process.env.WEEX_API_KEY ?? "",
-      "ACCESS-SIGN": sign(timestamp, method, requestPath, body),
-      "ACCESS-TIMESTAMP": timestamp,
-      "ACCESS-PASSPHRASE": process.env.WEEX_API_PASSPHRASE ?? "",
-      locale: "en-US",
-    },
-    body: body || undefined,
-    cache: "no-store",
+  const res = await withTimeout((signal) => {
+    const timestamp = Date.now().toString();
+    return fetch(`${WEEX_HOST}${requestPath}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "ACCESS-KEY": process.env.WEEX_API_KEY ?? "",
+        "ACCESS-SIGN": sign(timestamp, method, requestPath, body),
+        "ACCESS-TIMESTAMP": timestamp,
+        "ACCESS-PASSPHRASE": process.env.WEEX_API_PASSPHRASE ?? "",
+        locale: "en-US",
+      },
+      body: body || undefined,
+      cache: "no-store",
+      signal,
+    });
   });
 
-  const json = (await res.json()) as WeexEnvelope<T>;
-  return json;
+  const raw: unknown = await res.json().catch(() => null);
+  const parsed = WeexEnvelopeSchema.safeParse(raw);
+  if (!parsed.success) {
+    // The schema is the contract, but a live order must not be thrown away over
+    // a missing requestTime. If the answer still carries a code, read it
+    // loosely; otherwise report a parse failure, shaped like every other answer
+    // so no call site has to branch on null.
+    const loose = isRecord(raw) ? raw : null;
+    if (loose && typeof loose.code === "string") {
+      const stamped = numeric(loose.requestTime);
+      return {
+        code: loose.code,
+        msg: text(loose.msg),
+        requestTime: Number.isFinite(stamped) ? stamped : Date.now(),
+        data: (loose.data ?? null) as T | null,
+      };
+    }
+    return { code: "parse_failure", msg: "unreadable WEEX envelope", requestTime: Date.now(), data: null };
+  }
+
+  return {
+    code: parsed.data.code,
+    msg: parsed.data.msg,
+    requestTime: parsed.data.requestTime,
+    data: (parsed.data.data ?? null) as T | null,
+  };
 }
 
 export interface OrderRequest {
@@ -122,7 +189,7 @@ export async function placeOrder(req: OrderRequest, venue: Venue): Promise<Order
   const size = Math.round((req.notionalUsdt / req.price) * 10_000) / 10_000;
   const env = await request<{ order_id?: string; orderId?: string; price?: string }>(
     "POST",
-    "/capi/v3/order/placeOrder",
+    PATH_PLACE_ORDER,
     {
       symbol: req.symbol,
       client_oid: req.clientOid,
@@ -184,7 +251,7 @@ export async function uploadAiLog(payload: AiLogPayload, venue: Venue): Promise<
 
   const env = await request<unknown>(
     "POST",
-    "/capi/v3/order/uploadAiLog",
+    PATH_UPLOAD_AI_LOG,
     {
       stage: payload.stage,
       model: payload.model,
@@ -213,7 +280,7 @@ export async function lastPrice(symbol: string, fallback: number, venue: Venue):
   try {
     const env = await request<{ last?: string }>(
       "GET",
-      `/capi/v3/market/ticker?symbol=${encodeURIComponent(symbol)}`,
+      `${PATH_TICKER}?symbol=${encodeURIComponent(symbol)}`,
       null,
       venue,
     );
@@ -222,6 +289,73 @@ export async function lastPrice(symbol: string, fallback: number, venue: Venue):
   } catch {
     return fallback;
   }
+}
+
+/**
+ * Closed positions, normalized into the shape lib/attribution.ts folds onto the
+ * ledger.
+ *
+ * WEEX field names on the position history endpoint are not verified yet, so
+ * this reads the handful of spellings the v3 surface uses elsewhere and then
+ * validates every row through FillSchema. A row that does not parse is skipped,
+ * never guessed at: an unattributed fill is better than a loss charged to the
+ * wrong thesis, because the wrong thesis is the one the valve cuts.
+ *
+ * With no credentials there is nothing to read, so the answer is an empty list
+ * and the seeded ledger stands.
+ */
+export async function closedFills(venue: Venue): Promise<ClosedFill[]> {
+  if (!hasCredentials()) return [];
+
+  const env = await request<unknown>("GET", PATH_FILLS, null, venue);
+  if (env.code !== "00000" || env.data === null) return [];
+
+  return rowsOf(env.data)
+    .map(normalizeFill)
+    .filter((fill): fill is ClosedFill => fill !== null);
+}
+
+function rowsOf(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) return data.filter(isRecord);
+  if (!isRecord(data)) return [];
+  for (const key of ["list", "orderList", "result", "rows", "data"]) {
+    const inner = data[key];
+    if (Array.isArray(inner)) return inner.filter(isRecord);
+  }
+  return [];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeFill(row: Record<string, unknown>): ClosedFill | null {
+  const candidate = {
+    clientOid: text(row.client_oid ?? row.clientOid),
+    orderId: text(row.order_id ?? row.orderId ?? row.id),
+    symbol: text(row.symbol ?? row.instrument_id ?? row.contract_code),
+    realizedPnlUsdt: numeric(row.realized_pnl ?? row.realizedPnl ?? row.profit ?? row.pnl),
+    closedAt: timestamp(row.close_time ?? row.closeTime ?? row.utime ?? row.ctime),
+  };
+
+  const parsed = FillSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : null;
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value : typeof value === "number" ? String(value) : "";
+}
+
+function numeric(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(text(value));
+  return Number.isFinite(n) ? n : Number.NaN;
+}
+
+/** WEEX sends epoch milliseconds on some rows and an ISO string on others. */
+function timestamp(value: unknown): string {
+  if (typeof value === "string" && value.includes("-")) return value;
+  const ms = numeric(value);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : "";
 }
 
 function hash(s: string): number {
