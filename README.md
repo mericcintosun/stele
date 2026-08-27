@@ -21,7 +21,7 @@ Stele refuses to let an order exist without a reason attached to it.
 1. Before the round starts, six theses are written down: each with a name and an entry condition. Example: *funding under -0.02% for three settlements while open interest adds more than 4% in an hour, take the squeeze long.*
 2. When a signal arrives, it is matched to one of those written theses. A signal matching none of them never becomes an order.
 3. The order goes out over WEEX OpenAPI v3. The same decision is posted to `/capi/v3/order/uploadAiLog` with `stage`, `model`, `input`, `output` and a 1000 character `explanation`. The returned `orderId` pairs the fill with the thesis.
-4. When the position closes, its realized PnL is written back to that thesis.
+4. When the position closes, its realized PnL is written back to that thesis. `POST /api/attribute` does it for one named position, and the attribution job in `lib/store/weex-store.ts` does it in bulk from WEEX closed fills. Both end in the same `applyFillToThesis()` call, so the two paths cannot drift.
 5. The size of the next order comes from that thesis's own ledger, not from the agent's overall performance. A thesis at or past the halt line drops to zero capital, and the agent refuses its own order. The refusal is posted to the same log endpoint.
 
 The wow moment is step 5 running live: the agent proposes a long, the `TH-SQZ-LONG` ledger reads -2.14% over 7 closed trades, the valve multiplier goes to 0.00x, a red **REFUSED** row appears, and WEEX returns a receipt for the bot saying no.
@@ -57,10 +57,50 @@ Then click **Run decision loop** on the first SOL signal. Its thesis is under wa
 With no environment variables at all: WEEX calls return mock fills, the model chain falls to the local `claude` CLI if installed and to the offline stub otherwise. With `ANTHROPIC_API_KEY` set: real model calls. With the three WEEX keys set and `WEEX_VENUE=sim`: real signed calls to the demo futures endpoints.
 
 ```bash
-npm run build   # production build, the deploy gate
-npm test        # node:test over the valve, attribution and the edge schemas
-npm run seed    # validates lib/data/seed.json, writes public/seed-manifest.json
+npm run build        # production build, the deploy gate
+npm test             # node:test over the valve, attribution and the edge schemas
+npm run seed         # validates lib/data/seed.json, writes public/seed-manifest.json
+npm run demo:reset   # puts the running app back to the opening frame of DEMO.md
 ```
+
+## Store setup
+
+The round is server state. Every decision, the quota it spends, the position it opens and the
+uploadAiLog record it writes go into one JSON snapshot that `lib/store/round.ts` owns, which is why
+the refusal in step 4 of DEMO.md is still on screen after a hard refresh.
+
+Two environment variables, **both optional**:
+
+```
+KV_REST_API_URL=
+KV_REST_API_TOKEN=
+```
+
+Any Upstash compatible Redis REST endpoint works, over plain `fetch` with no client library. On
+Vercel, add the Upstash integration and it fills both in. On Upstash directly, copy them from the
+database page under "REST API". They are server only and neither carries a `NEXT_PUBLIC_` prefix.
+
+Without them the same snapshot lives in a module scope singleton instead. Every step of DEMO.md still
+works, a decision still survives a page reload while the process is up, and only a restart or a cold
+serverless instance sends the round back to its opening values. `lib/store/round.ts` is the only file
+in the repo that touches either driver.
+
+**There is no migration command in this build, and no SQL.** The store holds one document and seeds
+itself from `lib/store/fresh.ts` on the first read, so a fresh database needs no setup at all.
+`npm run seed` is a different thing: it validates `lib/data/seed.json` and writes
+`public/seed-manifest.json`, and it does not touch the store.
+
+## Reset the demo
+
+```bash
+npm run demo:reset                                        # http://localhost:3000
+STELE_BASE_URL=https://stele.vercel.app npm run demo:reset # the deployed console
+```
+
+It posts to `/api/reset` and prints the thesis, position, signal and log counts that came back, plus
+which driver answered. The **Reset round** control in the console header does the same thing. Run it
+before every take of the recording: the round persists on purpose, so without a reset the second take
+opens on the first take's leftovers.
 
 `npm test` runs `node --test tests/*.test.ts` and needs **Node 22.18 or newer**, which strips TypeScript types natively. There is no test build step and no test framework in `devDependencies`.
 
@@ -68,10 +108,10 @@ npm run seed    # validates lib/data/seed.json, writes public/seed-manifest.json
 
 ## What we would build next
 
-- Give the store a real database. Attribution and the log queue are behind the `LedgerStore` interface now, but the seed implementation holds its state at module scope, so a cold Vercel instance starts from the seed values again. The agent loop on the VPS is where a durable ledger belongs.
 - Round rollover: carry the thesis ledger across the five weekly rounds and nothing else, then chart per-thesis equity curves so drift is visible before it becomes drawdown.
 - A signal source per thesis, reading funding and open interest from WEEX market endpoints on a timer, instead of the seeded queue.
-- Refresh without a click: the ledger moves when a position closes, and today that only shows on the next navigation.
+- Refresh without a click: the ledger moves when a position closes, and today that only shows on the next navigation or the next decision.
+- A compare and set on the round write. One blob and one demo operator means a lost update is not reachable today, but two agent processes writing the same round would need it.
 
 ## AI use
 
