@@ -5,6 +5,8 @@
 // Phase 2, which is why this file can be imported from a server route, a client
 // component and the pure valve alike.
 
+import type { SteleError } from "./errors";
+
 export type ThesisState = "active" | "throttled" | "halted";
 
 export interface Thesis {
@@ -96,6 +98,20 @@ export interface Fill {
   filledAt: string;
 }
 
+/**
+ * A position that has already closed, as the attribution job needs it. The
+ * clientOid is the only link back to the thesis that opened it, which is why
+ * every order Stele sends carries one. Shape mirrors FillSchema in
+ * lib/schemas.ts; lib/attribution.ts reads this type and never imports zod.
+ */
+export interface ClosedFill {
+  clientOid: string;
+  orderId: string;
+  symbol: string;
+  realizedPnlUsdt: number;
+  closedAt: string;
+}
+
 export interface Decision {
   signalId: string;
   thesisId: string;
@@ -115,8 +131,12 @@ export interface Decision {
   liveFill: Fill | null;
 }
 
-/** Every route handler in this repo answers with exactly this envelope. */
-export type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
+/**
+ * Every route handler in this repo answers with exactly this envelope. The
+ * failure arm carries the SteleErrorCode the client switches on plus a hint a
+ * human can read, so no component ever matches on message text.
+ */
+export type ApiResponse<T> = { ok: true; data: T } | ({ ok: false } & SteleError);
 
 /** One read of the whole console state. What the adapter hands to /console. */
 export interface ConsoleSnapshot {
