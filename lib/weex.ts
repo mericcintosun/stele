@@ -29,6 +29,7 @@ import {
   WEEX_HOST,
   WEEX_VENUE,
 } from "./config";
+import { trace } from "./observability";
 import { FillSchema, WeexEnvelopeSchema } from "./schemas";
 import type { ClosedFill } from "./types";
 
@@ -80,13 +81,27 @@ async function withTimeout(attempt: (signal: AbortSignal) => Promise<Response>):
     }
   };
 
+  let attempts = 0;
   try {
+    attempts += 1;
     return await once();
   } catch (first) {
     if (RETRY_COUNT < 1) throw first;
+    attempts += 1;
     return await once();
+  } finally {
+    if (attempts > 1) trace("weex retried", { attempts });
   }
 }
+
+/**
+ * The envelope a dead endpoint produces. Both attempts timed out or the network
+ * refused, so nothing was sent and nothing can be read back. It is shaped like
+ * every other answer on purpose: placeOrder reports ok: false, uploadAiLog
+ * reports the record still queued, and the caller never has an exception on the
+ * core path. lib/errors.ts calls this condition upstream_timeout.
+ */
+const TIMEOUT_CODE = "upstream_timeout";
 
 async function request<T>(
   method: "GET" | "POST",
@@ -97,23 +112,32 @@ async function request<T>(
   const requestPath = pathFor(path, venue);
   const body = method === "POST" && payload ? JSON.stringify(payload) : "";
 
-  const res = await withTimeout((signal) => {
-    const timestamp = Date.now().toString();
-    return fetch(`${WEEX_HOST}${requestPath}`, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        "ACCESS-KEY": process.env.WEEX_API_KEY ?? "",
-        "ACCESS-SIGN": sign(timestamp, method, requestPath, body),
-        "ACCESS-TIMESTAMP": timestamp,
-        "ACCESS-PASSPHRASE": process.env.WEEX_API_PASSPHRASE ?? "",
-        locale: "en-US",
-      },
-      body: body || undefined,
-      cache: "no-store",
-      signal,
+  let res: Response;
+  try {
+    res = await withTimeout((signal) => {
+      const timestamp = Date.now().toString();
+      return fetch(`${WEEX_HOST}${requestPath}`, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "ACCESS-KEY": process.env.WEEX_API_KEY ?? "",
+          "ACCESS-SIGN": sign(timestamp, method, requestPath, body),
+          "ACCESS-TIMESTAMP": timestamp,
+          "ACCESS-PASSPHRASE": process.env.WEEX_API_PASSPHRASE ?? "",
+          locale: "en-US",
+        },
+        body: body || undefined,
+        cache: "no-store",
+        signal,
+      });
     });
-  });
+  } catch {
+    // Both attempts aborted or the network refused. Report it as the envelope
+    // every call site already knows how to read, so a dead endpoint cannot
+    // throw an exception up through a route handler.
+    trace("weex unreachable", { path: requestPath, code: TIMEOUT_CODE });
+    return { code: TIMEOUT_CODE, msg: "WEEX did not answer in time", requestTime: Date.now(), data: null };
+  }
 
   const raw: unknown = await res.json().catch(() => null);
   const parsed = WeexEnvelopeSchema.safeParse(raw);

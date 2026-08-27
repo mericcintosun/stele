@@ -7,11 +7,31 @@
 
 import { z } from "zod";
 
-/** POST /api/decide. */
+/**
+ * POST /api/decide.
+ *
+ * idempotencyKey is optional so a curl call still works. When it is missing the
+ * route falls back to the signal id, which means a repeated call with no key is
+ * also treated as a repeat rather than as a second order. The console always
+ * sends one, shaped `${signalId}-${round.updatedAt}`, so a double click inside
+ * one round state cannot place two orders.
+ */
 export const DecideRequestSchema = z.object({
   signalId: z.string().min(1, "signalId is required"),
+  idempotencyKey: z.string().min(1).max(200).optional(),
 });
 export type DecideRequest = z.infer<typeof DecideRequestSchema>;
+
+/**
+ * POST /api/attribute. Closes one open position at a price and writes the
+ * realized PnL back onto the thesis that opened it.
+ */
+export const AttributeRequestSchema = z.object({
+  positionId: z.string().min(1, "positionId is required"),
+  exitPrice: z.number().finite().positive(),
+  idempotencyKey: z.string().min(1).max(200).optional(),
+});
+export type AttributeRequest = z.infer<typeof AttributeRequestSchema>;
 
 /** POST /api/queue. An empty body replays everything that is still unsent. */
 export const QueueReplayRequestSchema = z.object({

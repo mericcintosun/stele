@@ -14,11 +14,11 @@
 // order, and the order is the part that makes it evidence.
 
 import { NextResponse } from "next/server";
-import { fail, STATUS_FOR } from "@/lib/errors";
+import { errorResponse } from "@/lib/errors";
 import { trace } from "@/lib/observability";
-import { QueueReplayRequestSchema } from "@/lib/schemas";
 import { getStore } from "@/lib/store";
 import type { AiLogRecord, ApiResponse } from "@/lib/types";
+import { parseQueueBody, readJson } from "@/lib/validate";
 import { uploadAiLog, venueFromEnv } from "@/lib/weex";
 
 export const runtime = "nodejs";
@@ -43,24 +43,13 @@ export async function GET() {
     const body: ApiResponse<QueueView> = { ok: true, data: { depth, records } };
     return NextResponse.json(body);
   } catch {
-    const body: ApiResponse<never> = {
-      ok: false,
-      ...fail("upstream_error", "the log queue could not be read"),
-    };
-    return NextResponse.json(body, { status: STATUS_FOR.upstream_error });
+    return errorResponse("store_unavailable", "the log queue could not be read");
   }
 }
 
 export async function POST(req: Request) {
-  const raw: unknown = await req.json().catch(() => ({}));
-  const parsed = QueueReplayRequestSchema.safeParse(raw ?? {});
-  if (!parsed.success) {
-    const body: ApiResponse<never> = {
-      ok: false,
-      ...fail("invalid_input", "post {} or { limit: number } with limit between 1 and 100"),
-    };
-    return NextResponse.json(body, { status: STATUS_FOR.invalid_input });
-  }
+  const parsed = parseQueueBody(await readJson(req));
+  if (!parsed.ok) return errorResponse(parsed.code, parsed.message);
 
   const store = getStore();
   const venue = venueFromEnv();
@@ -69,7 +58,7 @@ export async function POST(req: Request) {
   const pending = all
     .filter((record) => record.queued)
     .sort((a, b) => a.postedAt.localeCompare(b.postedAt))
-    .slice(0, parsed.data.limit ?? 100);
+    .slice(0, parsed.value.limit ?? 100);
 
   let replayed = 0;
 

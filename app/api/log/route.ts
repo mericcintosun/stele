@@ -5,7 +5,7 @@
 // the store's own count now, not a filter over the rendered list.
 
 import { NextResponse } from "next/server";
-import { fail, STATUS_FOR } from "@/lib/errors";
+import { errorResponse } from "@/lib/errors";
 import { getStore } from "@/lib/store";
 import type { AiLogRecord, ApiResponse } from "@/lib/types";
 
@@ -23,10 +23,6 @@ export async function GET() {
     };
     return NextResponse.json(body);
   } catch {
-    const body: ApiResponse<never> = {
-      ok: false,
-      ...fail("upstream_error", "the uploadAiLog record list could not be read"),
-    };
-    return NextResponse.json(body, { status: STATUS_FOR.upstream_error });
+    return errorResponse("store_unavailable", "the uploadAiLog record list could not be read");
   }
 }
