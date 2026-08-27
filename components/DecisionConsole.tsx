@@ -1,32 +1,38 @@
 "use client";
 
+// The decision console.
+//
+// Since Phase 3 this component holds no round state of its own. It holds one
+// RoundView, and that view only ever arrives from the server: the first frame
+// is server rendered in app/console/page.tsx, and after that it comes back from
+// POST /api/decide, POST /api/reset or GET /api/round. There is no useEffect
+// fetch on mount and no arithmetic here that moves a ledger, spends a quota or
+// invents a position. Everything on screen is what the store says.
+//
+// The reason is step 5 of DEMO.md: the refusal has to still be there after a
+// hard refresh. Anything this component computed for itself would not be.
+
 import { useState } from "react";
+import {
+  ConsoleErrorState,
+  ConsoleSkeleton,
+  SignalQueueEmptyState,
+} from "@/components/ConsoleStates";
 import DecisionLog from "@/components/DecisionLog";
 import ThesisLedger from "@/components/ThesisLedger";
-import type { SteleErrorCode } from "@/lib/errors";
+import type { SteleError, SteleErrorCode } from "@/lib/errors";
 import { pct, stamp, usdt } from "@/lib/format";
-import type {
-  AiLogRecord,
-  ApiResponse,
-  ConsoleSnapshot,
-  Decision,
-  MarketRow,
-  Position,
-  Signal,
-  Thesis,
-} from "@/lib/types";
+import type { ApiResponse, Decision, RoundView, Signal } from "@/lib/types";
 import { valveFor } from "@/lib/valve";
 
 interface Props {
-  /** Comes from getStore().snapshot(). The console never reads a seed literal. */
-  account: ConsoleSnapshot["account"];
-  theses: Thesis[];
-  positions: Position[];
-  markets: MarketRow[];
-  signals: Signal[];
-  logs: AiLogRecord[];
-  /** Records the exchange has not accepted yet, counted by the store. */
-  queueDepth: number;
+  /** The round as the server rendered it. The console never reads a seed literal. */
+  initial: RoundView;
+}
+
+interface RoundPayload {
+  round: RoundView;
+  wiring: { modelPath: Decision["source"] | null; persistence: "kv" | "memory" };
 }
 
 /**
@@ -34,12 +40,14 @@ interface Props {
  * never on message text, so server wording can change without breaking the UI.
  */
 const ERROR_COPY: Record<SteleErrorCode, string> = {
-  invalid_input: "The server does not have that signal. Reload the page and try again.",
+  invalid_input: "The server does not have that signal. Reload the round and try again.",
   unknown_thesis: "That signal is not bound to a written thesis, so no order can exist.",
   parse_failure: "The model answer could not be read. Nothing was sent to the exchange.",
   not_configured: "This deployment has no WEEX credentials configured.",
+  store_unavailable: "The round store did not answer. Nothing was written and nothing was sent.",
   upstream_timeout: "WEEX did not answer in time. Nothing was sent.",
   upstream_error: "WEEX refused the request. Nothing was sent.",
+  internal: "The decision loop failed before it reached the exchange.",
 };
 
 const VERDICT_STYLE: Record<Decision["verdict"], string> = {
@@ -66,17 +74,38 @@ function price(n: number): string {
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${frac}`;
 }
 
-export default function DecisionConsole(props: Props) {
-  const [theses, setTheses] = useState<Thesis[]>(props.theses);
-  const [positions, setPositions] = useState<Position[]>(props.positions);
-  const [logs, setLogs] = useState<AiLogRecord[]>(props.logs);
-  const [decisions, setDecisions] = useState<Decision[]>([]);
-  const [handled, setHandled] = useState<string[]>([]);
+export default function DecisionConsole({ initial }: Props) {
+  const [round, setRound] = useState<RoundView>(initial);
   const [selectedThesis, setSelectedThesis] = useState<string | null>("TH-SQZ-LONG");
   const [pending, setPending] = useState<string | null>(null);
-  const [modelPath, setModelPath] = useState<Decision["source"] | null>(null);
-  const [queueDepth, setQueueDepth] = useState<number>(props.queueDepth);
+  const [reloading, setReloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const modelPath = round.decisions[0]?.source ?? null;
+  const queue = round.signals.filter((s) => !round.handledSignalIds.includes(s.id));
+
+  function applyFailure(payload: SteleError) {
+    setError(ERROR_COPY[payload.error] ?? payload.hint);
+  }
+
+  /** The one refresh path. Both the retry button and a manual reload come here. */
+  async function refresh() {
+    setReloading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/round", { cache: "no-store" });
+      const payload = (await res.json()) as ApiResponse<RoundPayload>;
+      if (!payload.ok) {
+        applyFailure(payload);
+        return;
+      }
+      setRound(payload.data.round);
+    } catch {
+      setError("The round could not be read. The server did not answer.");
+    } finally {
+      setReloading(false);
+    }
+  }
 
   async function evaluate(signal: Signal) {
     setPending(signal.id);
@@ -87,53 +116,25 @@ export default function DecisionConsole(props: Props) {
       const res = await fetch("/api/decide", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signalId: signal.id }),
+        // Signal plus the round state it was decided against. A double click
+        // sends the same key twice and the second one replays the stored
+        // decision instead of placing a second order.
+        body: JSON.stringify({
+          signalId: signal.id,
+          idempotencyKey: `${signal.id}-${round.updatedAt}`,
+        }),
       });
-      const payload = (await res.json()) as ApiResponse<{
-        decision: Decision;
-        wiring: { modelPath: Decision["source"] };
-        theses: Thesis[];
-        queueDepth: number;
-      }>;
+      const payload = (await res.json()) as ApiResponse<{ decision: Decision; round: RoundView }>;
 
       if (!payload.ok) {
-        setError(ERROR_COPY[payload.error] ?? payload.hint);
+        applyFailure(payload);
         return;
       }
 
-      const d = payload.data.decision;
-
-      setDecisions((prev) => [d, ...prev]);
-      setLogs((prev) => [d.aiLog, ...prev]);
-      setHandled((prev) => [...prev, signal.id]);
-      setModelPath(payload.data.wiring.modelPath);
-      setQueueDepth(payload.data.queueDepth);
-
-      // The ledger comes back from the store, not from arithmetic here. Quota
-      // spent by an accepted order is already charged against the thesis, and
-      // realized PnL lands on it later when attribution reads the closed fill.
-      setTheses(payload.data.theses);
-
-      if (d.verdict !== "rejected" && d.liveFill) {
-        setPositions((prev) => [
-          {
-            id: `POS-${d.liveFill!.orderId.slice(-4)}`,
-            symbol: d.symbol,
-            side: d.side,
-            thesisId: d.thesisId,
-            entryPrice: d.liveFill!.price,
-            markPrice: d.liveFill!.price,
-            sizeContracts: Math.round((d.notionalUsdt / d.entryPrice) * 10_000) / 10_000,
-            notionalUsdt: d.notionalUsdt,
-            leverage: 5,
-            takeProfit: d.takeProfit,
-            stopLoss: d.stopLoss,
-            unrealizedPnlUsdt: 0,
-            openedAt: d.liveFill!.filledAt,
-          },
-          ...prev,
-        ]);
-      }
+      // The whole round comes back from the store: the ledger with its quota
+      // already spent, the new position, the decision and its uploadAiLog
+      // record. Nothing is reconstructed here.
+      setRound(payload.data.round);
     } catch {
       // Network level only. Everything the server can explain arrives as a code.
       setError("The decision loop could not be reached. Nothing was sent.");
@@ -142,45 +143,64 @@ export default function DecisionConsole(props: Props) {
     }
   }
 
-  function reset() {
-    setTheses(props.theses);
-    setPositions(props.positions);
-    setLogs(props.logs);
-    setDecisions([]);
-    setHandled([]);
-    setModelPath(null);
-    setQueueDepth(props.queueDepth);
+  /** Back to the opening frame, server side, so the take can be retaken. */
+  async function reset() {
+    setPending("reset");
+    setReloading(true);
     setError(null);
+    try {
+      const res = await fetch("/api/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const payload = (await res.json()) as ApiResponse<RoundPayload>;
+      if (!payload.ok) {
+        applyFailure(payload);
+        return;
+      }
+      setRound(payload.data.round);
+      setSelectedThesis("TH-SQZ-LONG");
+    } catch {
+      setError("The round could not be reset. The server did not answer.");
+    } finally {
+      setPending(null);
+      setReloading(false);
+    }
   }
 
-  const queue = props.signals.filter((s) => !handled.includes(s.id));
+  // The reset round trip is the only moment the console has no trustworthy
+  // round to draw, so it is the only moment the skeleton shows.
+  if (reloading && pending === "reset") return <ConsoleSkeleton />;
 
   return (
     <div className="space-y-4">
       {/* Account strip */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-line bg-panel px-4 py-3 font-mono text-xs">
         <span className="text-mut">
-          UID <span className="text-ink">{props.account.uid}</span>
+          UID <span className="text-ink">{round.account.uid}</span>
         </span>
         <span className="text-mut">
-          Side <span className="text-acc">{props.account.side}</span>
+          Side <span className="text-acc">{round.account.side}</span>
         </span>
         <span className="text-mut">
           Round{" "}
           <span className="text-ink">
-            {props.account.round} / {props.account.totalRounds}
+            {round.account.round} / {round.account.totalRounds}
           </span>
         </span>
         <span className="text-mut">
-          Equity <span className="text-ink">{props.account.equityUsdt.toFixed(2)} USDT</span>
+          Equity <span className="text-ink">{round.account.equityUsdt.toFixed(2)} USDT</span>
         </span>
         <span className="text-mut">
-          Free <span className="text-ink">{props.account.availableUsdt.toFixed(2)} USDT</span>
+          Free <span className="text-ink">{round.account.availableUsdt.toFixed(2)} USDT</span>
         </span>
         <span className="text-mut">
           Queue{" "}
-          <span className={queueDepth > 0 ? "text-warn" : "text-ok"}>
-            {queueDepth > 0 ? `${queueDepth} queued for allowlist` : "all receipts accepted"}
+          <span className={round.queueDepth > 0 ? "text-warn" : "text-ok"}>
+            {round.queueDepth > 0
+              ? `${round.queueDepth} queued for allowlist`
+              : "all receipts accepted"}
           </span>
         </span>
         <span className="ml-auto text-mut">
@@ -190,7 +210,8 @@ export default function DecisionConsole(props: Props) {
         <button
           type="button"
           onClick={reset}
-          className="rounded border border-line px-2 py-1 text-[11px] text-mut transition-colors hover:border-acc/50 hover:text-acc"
+          disabled={pending !== null}
+          className="rounded border border-line px-2 py-1 text-[11px] text-mut transition-colors hover:border-acc/50 hover:text-acc disabled:opacity-40"
         >
           Reset round
         </button>
@@ -198,11 +219,11 @@ export default function DecisionConsole(props: Props) {
 
       {/* Market strip */}
       <div className="grid gap-3 sm:grid-cols-3">
-        {props.markets.map((m) => (
+        {round.markets.map((m) => (
           <div key={m.symbol} className="rounded-xl border border-line bg-panel px-4 py-3">
             <p className="font-mono text-[11px] text-mut">{m.symbol}</p>
             <p className="mt-1 font-mono text-xl tabular-nums">{price(m.lastPrice)}</p>
-            <div className="mt-1 flex gap-3 font-mono text-[11px]">
+            <div className="mt-1 flex flex-wrap gap-x-3 font-mono text-[11px]">
               <span className={m.change24hPct < 0 ? "text-bad" : "text-ok"}>
                 {pct(m.change24hPct)} 24h
               </span>
@@ -216,7 +237,7 @@ export default function DecisionConsole(props: Props) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,380px)]">
-        <ThesisLedger theses={theses} activeId={selectedThesis} onSelect={setSelectedThesis} />
+        <ThesisLedger theses={round.theses} activeId={selectedThesis} onSelect={setSelectedThesis} />
 
         {/* Center: signal queue and the decision stream */}
         <div className="space-y-4">
@@ -227,24 +248,22 @@ export default function DecisionConsole(props: Props) {
             </header>
 
             {queue.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-mut">
-                Queue drained. Reset the round to run the sequence again.
-              </p>
+              <SignalQueueEmptyState onReset={reset} busy={pending !== null} />
             ) : (
               <ul className="divide-y divide-line">
                 {queue.map((s) => {
-                  const t = theses.find((x) => x.id === s.thesisId);
+                  const t = round.theses.find((x) => x.id === s.thesisId);
                   const valve = t ? valveFor(t) : null;
                   return (
                     <li key={s.id} className="px-4 py-3">
-                      <div className="flex items-center gap-2 font-mono text-[11px] text-mut">
+                      <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-mut">
                         <span>{s.id}</span>
                         <span>{s.symbol}</span>
                         <span className="uppercase">{s.suggestedSide}</span>
                         <span className="ml-auto">{s.thesisId}</span>
                       </div>
                       <p className="mt-1.5 text-sm leading-relaxed">{s.headline}</p>
-                      <div className="mt-2 flex items-center gap-3">
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
                         <button
                           type="button"
                           onClick={() => evaluate(s)}
@@ -267,24 +286,22 @@ export default function DecisionConsole(props: Props) {
           </section>
 
           {error ? (
-            <p className="rounded-lg border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad">
-              {error}
-            </p>
+            <ConsoleErrorState message={error} onRetry={refresh} busy={reloading} />
           ) : null}
 
           <section className="rounded-xl border border-line bg-panel">
             <header className="border-b border-line px-4 py-3">
-              <h2 className="text-sm font-semibold tracking-tight">Decisions this session</h2>
+              <h2 className="text-sm font-semibold tracking-tight">Decisions this round</h2>
             </header>
 
-            {decisions.length === 0 ? (
+            {round.decisions.length === 0 ? (
               <p className="px-4 py-6 text-sm text-mut">
                 Nothing yet. Run the SOL signal first: its thesis ledger is under water, so the
                 valve refuses the agent&apos;s own order and writes the refusal to WEEX.
               </p>
             ) : (
               <ul className="divide-y divide-line">
-                {decisions.map((d, i) => (
+                {round.decisions.map((d, i) => (
                   <li key={`${d.signalId}-${i}`} className="space-y-2 px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
@@ -311,7 +328,7 @@ export default function DecisionConsole(props: Props) {
                       <div className="grid gap-2 sm:grid-cols-2">
                         <div className="rounded border border-line bg-panel2 px-2 py-1.5 font-mono text-[11px]">
                           <p className="text-mut">shadow fill (sim)</p>
-                          <p className="text-ink">
+                          <p className="break-all text-ink">
                             {d.shadowFill
                               ? `${d.shadowFill.price.toFixed(2)} · ${d.shadowFill.orderId}`
                               : "not run"}
@@ -319,7 +336,7 @@ export default function DecisionConsole(props: Props) {
                         </div>
                         <div className="rounded border border-line bg-panel2 px-2 py-1.5 font-mono text-[11px]">
                           <p className="text-mut">live fill</p>
-                          <p className="text-ink">
+                          <p className="break-all text-ink">
                             {d.liveFill
                               ? `${d.liveFill.price.toFixed(2)} · ${d.liveFill.orderId}`
                               : "not run"}
@@ -343,7 +360,7 @@ export default function DecisionConsole(props: Props) {
           </section>
 
           <section className="rounded-xl border border-line bg-panel">
-            <header className="flex items-baseline justify-between border-b border-line px-4 py-3">
+            <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-3">
               <h2 className="text-sm font-semibold tracking-tight">Open positions</h2>
               <span className="text-[11px] text-mut">every entry carries exchange-side TP/SL</span>
             </header>
@@ -361,7 +378,7 @@ export default function DecisionConsole(props: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {positions.map((p) => (
+                  {round.positions.map((p) => (
                     <tr key={p.id}>
                       <td className="px-4 py-2">
                         <span className="text-ink">{p.symbol}</span>{" "}
@@ -386,7 +403,7 @@ export default function DecisionConsole(props: Props) {
           </section>
         </div>
 
-        <DecisionLog logs={logs} queueDepth={queueDepth} />
+        <DecisionLog logs={round.logs} queueDepth={round.queueDepth} />
       </div>
     </div>
   );
