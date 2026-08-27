@@ -4,8 +4,12 @@
 is under the halt line, and the exchange issues a receipt for the refusal.
 
 **Demo start route: `/console`.** Open the deployed URL, go straight there, and run the five steps
-below in order. Every step works on seeded data with zero environment variables set, so the recording
-never waits on the WEEX allowlist.
+below in order. Every step works with zero environment variables set, so the recording never waits on
+the WEEX allowlist.
+
+**Before the take, run `npm run demo:reset`.** It posts to `/api/reset` and puts the round back to the
+opening frame. Since Phase 3 the round is server state, not React state, so a decision persists until
+something resets it. That is what makes step 5 possible and what makes the take retakeable.
 
 **The problem sentence:** an agent with an 80% win rate still ended WEEX Season 1 in a 40% drawdown,
 because it had one total PnL number and no record of which reason lost the money.
@@ -19,78 +23,100 @@ which reason killed it.
 
 ### 1. Cold open, one screen (0:00 to 0:15)
 
-Route file: `app/console/page.tsx`
+**On screen:** six theses and their realized PnL on the left, `cmt_solusdt` at 144.06 in the middle,
+three open positions on the right, four signals waiting. No scrolling, no explanation.
 
-Six theses and their realized PnL on the left, `cmt_solusdt` price in the middle, open positions on
-the right. No scrolling, no explanation.
+**Route:** `/console`
+
+**File that owns it:** `app/console/page.tsx`. It calls `readRound()` and passes the result straight
+into `<DecisionConsole initial={...} />`, so the first frame is server rendered with no client fetch.
+
+**Fallback branch in that same file:** none needed. `readRound()` in `lib/store/round.ts` seeds itself
+from `lib/store/fresh.ts` when the key is missing, so this screen cannot render empty.
 
 Say: "This agent allocates capital to its reasons, not to itself."
 
-**Real since Phase 1.** The screen reads through `getStore()`, which serves the seeded ledger.
+### 2. A signal is matched to a written thesis and the uploadAiLog body fills (0:15 to 0:45)
 
-### 2. A signal arrives and is matched to a written thesis (0:15 to 0:45)
+**On screen:** press **Run decision loop** on `SIG-9107`, the BTC pullback signal. Its thesis
+`TH-TREND-PB` highlights and its written precondition expands. On the right the uploadAiLog body
+fills in with `stage`, `model`, `input`, `output` and the explanation, then the WEEX response or the
+queue notice lands under it. The order goes out and its exchange-side TP and SL join the positions
+table.
 
-Route file: `app/console/page.tsx`, decision loop in `app/api/decide/route.ts`
+**Route:** `POST /api/decide`
 
-Pick `SIG-9107` on BTC and press **Run decision loop**. The thesis it claims, `TH-TREND-PB`,
-highlights and its written precondition expands. On the right the uploadAiLog body fills in with
-`stage`, `model`, `input`, `output` and the explanation, then the WEEX response or the queue notice
-lands under it. The order goes out and its exchange-side TP and SL join the positions table.
+**File that owns it:** `app/api/decide/route.ts`. It reads the thesis out of the persisted round,
+runs `lib/valve.ts`, calls `lib/agent.ts`, writes the record into the round, then posts it.
 
-**Real since Phase 1** for the model chain and the signed WEEX client. **Phase 2** made the log
-record durable: it is written to the queue before the POST is attempted, so nothing is lost when the
-exchange rejects an un-allowlisted UID.
+**Fallback branches:** `viaMock()` in `lib/agent.ts` writes the explanation when there is no
+`ANTHROPIC_API_KEY` and no local CLI. The `if (!hasCredentials())` branch in `placeOrder()` in
+`lib/weex.ts` returns a deterministic mock fill when the WEEX keys are absent.
 
 ### 3. Shadow fill and live fill, side by side (0:45 to 1:00)
 
-Route file: `app/api/decide/route.ts`
+**On screen:** both fills under the decision, with their prices and order ids, next to the notional,
+take profit and stop loss.
 
-The same decision ran on `/capi/v3/sim` first. Both fills show with their prices and order ids next
-to the notional, take profit and stop loss.
+**Route:** `POST /api/decide`, same request as step 2.
+
+**File that owns it:** `app/api/decide/route.ts`, the two `placeOrder()` calls: `"sim"` first, then
+`venueFromEnv()`. `pathFor()` in `lib/weex.ts` is the whole switch, rewriting `/capi/v3/` to
+`/capi/v3/sim/`.
+
+**Fallback branch:** the same credential free mock path in `lib/weex.ts`, which prices the sim fill at
+4bp of slippage and the live fill at 7bp so the two are visibly different.
 
 Say: "Every decision runs on simulation first, then live."
 
-**Real since Phase 1.** `WEEX_VENUE=live` is the only switch between the two paths.
-
 ### 4. The refusal. This is the wow step (1:00 to 1:15)
 
-Route file: `app/console/page.tsx`, valve in `lib/valve.ts`, ledger from `lib/attribution.ts`
+**On screen:** press **Run decision loop** on `SIG-9104`, the SOL squeeze signal. Its thesis
+`TH-SQZ-LONG` reads -2.14% over 7 closed trades, past the -2.0% halt line. The valve multiplier drops
+to 0.00x, a red **REFUSED** row appears, 0.00 USDT is deployed and no order reaches the exchange. The
+refusal is posted to `/capi/v3/order/uploadAiLog` as a `stage: "rejection"` record.
 
-Press **Run decision loop** on `SIG-9104`, the SOL squeeze signal. Its thesis `TH-SQZ-LONG` reads
--2.14% over 7 closed trades, past the -2.0% halt line. The valve multiplier drops to 0.00x, a red
-**REFUSED** row appears, 0.00 USDT is deployed and no order reaches the exchange. The refusal is
-posted to `/capi/v3/order/uploadAiLog` as a `stage: "rejection"` record, and the console header
-counts anything the exchange has not accepted yet as `N queued for allowlist`.
+**Route:** `POST /api/decide`
 
-**Phase 2.** The number the valve reads is now produced by attribution: closed fills coming back from
-WEEX are matched to the thesis that opened them through the `clientOid`, and their realized PnL lands
-on that thesis ledger. With `ADAPTER_MODE=fake` the same code path runs against the seeded ledger,
-which is what the recording uses.
+**File that owns it:** `lib/valve.ts`, the `t.realizedPnlPct <= VALVE.haltPnlPct` branch in
+`valveFor()`. `app/api/decide/route.ts` sends the rejection down the identical path an order takes.
 
-### 5. The refusal receipt in the audit trail (1:15 to 1:30)
+**Fallback branch:** `uploadAiLog()` in `lib/weex.ts`, inside `if (!hasCredentials())`, returns
+`{ accepted: false, queued: true }`. The record was already written into the round before the POST
+was attempted, so the header counts it as `N queued for allowlist` rather than losing it.
 
-Route file: `app/log/page.tsx`, queue in `app/api/queue/route.ts`
+### 5. The receipt, the grey thesis, and a hard refresh (1:15 to 1:30)
 
-Click **Audit trail**. The full uploadAiLog list is there, newest first, with the `stage: "rejection"`
-record for `SIG-9104` and the queue depth at the top. Camera returns to the ledger: `TH-SQZ-LONG` is
-grey now, its capital closed for the round.
+**On screen:** the refusal receipt is in the uploadAiLog stream on the right with its 1000 character
+counter. The camera returns to the ledger: `TH-SQZ-LONG` is grey now, its capital closed for the
+round. Then press Cmd+Shift+R. **The refusal is still there.**
+
+**Route:** `/console` again, plus `/log` for the wide audit trail.
+
+**File that owns it:** `lib/store/round.ts`. The decision, the spent quota, the new position and the
+log record all live in one JSON round snapshot that the browser does not hold.
+
+**Fallback branch in that same file:** the `memory` singleton. With `KV_REST_API_URL` and
+`KV_REST_API_TOKEN` set, the refusal survives the refresh and a cold serverless instance. Without
+them it survives the refresh but not a process restart, which is enough for a local recording and is
+what the deploy does until the two keys are filled in.
 
 Say the closing line here.
-
-**Phase 2** for the queue: `GET /api/queue` reports depth and records, `POST /api/queue` replays
-unsent records in `postedAt` order.
 
 ---
 
 ## Recording notes
 
+- Run `npm run demo:reset` before every take. Nothing else resets the round, and the second take
+  starts from a different screen than the first if you skip it.
 - Set `ANTHROPIC_API_KEY` before recording so the console header reads "Anthropic API" instead of
   "offline stub". The model token allocation is awarded on proof of real model usage.
 - Leave `ADAPTER_MODE` unset or at `fake` for the recording. The wow step does not need the real
   adapter, and the seed keeps every panel non-empty.
-- **Reset round** in the account strip puts the console back to the seed state, so the sequence can
-  be rehearsed until it runs clean in one take.
-- Running step 4 twice with the same signal renders the same explanation, because `lib/cache.ts`
-  keys the model answer by a hash of the prompt.
+- Running step 4 twice renders the same explanation, because `responseCache` in `lib/agent.ts` keys
+  the model answer by a hash of the prompt. The second take is also faster: no model call at all.
+- A double click on **Run decision loop** cannot place two orders. The console sends
+  `idempotencyKey: ${signalId}-${round.updatedAt}` and `/api/decide` replays the stored decision when
+  it sees that key again.
 - One take, English voiceover, no setup narration. The screen is already at `/console` when the
   recording starts.

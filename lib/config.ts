@@ -44,6 +44,43 @@ export const ADAPTER_MODE = process.env.ADAPTER_MODE ?? "fake";
 /** First segment of every client_oid Stele sends: stele-<thesisId>-<signalId>-<ts>. */
 export const CLIENT_OID_PREFIX = "stele";
 
+// ---------------------------------------------------------------------------
+// Round store (lib/store/round.ts, the only module that uses these two values)
+// ---------------------------------------------------------------------------
+// An Upstash compatible Redis REST endpoint. Both are optional. With either one
+// missing the round lives in a module scope singleton instead, which still walks
+// the whole of DEMO.md and only loses state when the process does.
+//
+// Server only. Neither key carries a NEXT_PUBLIC_ prefix and no client
+// component imports this module.
+export const KV_REST_API_URL = process.env.KV_REST_API_URL ?? "";
+export const KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN ?? "";
+
+/** Which driver lib/store/round.ts will actually use on this process. */
+export function storeMode(): "kv" | "memory" {
+  return KV_REST_API_URL !== "" && KV_REST_API_TOKEN !== "" ? "kv" : "memory";
+}
+
+/** One key holds the whole round snapshot. Bump the suffix to invalidate. */
+export const ROUND_KEY = "stele:round:v1";
+
+/** Abort a store read or write after this. Shorter than the WEEX deadline. */
+export const STORE_TIMEOUT_MS = 4000;
+
+/** Where scripts/demo-reset.mjs posts. Only that script reads it. */
+export const BASE_URL = process.env.STELE_BASE_URL ?? "http://localhost:3000";
+
+/**
+ * The two signals DEMO.md runs, by id. Step 2 sends an order, step 4 is the
+ * refusal, and the thesis under the halt line is the one the refusal names.
+ * Written down here so a seed edit that breaks the recording is one grep away.
+ */
+export const DEMO = {
+  orderSignalId: "SIG-9107",
+  refusalSignalId: "SIG-9104",
+  haltedThesisId: "TH-SQZ-LONG",
+} as const;
+
 /** The perpetual pairs the agent is allowed to touch. WEEX writes them lowercase. */
 export const ALLOWED_SYMBOLS = [
   "cmt_btcusdt",
