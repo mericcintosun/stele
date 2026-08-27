@@ -4,137 +4,109 @@
 // zero environment variables the console still renders six theses, three
 // positions, three market rows, four signals and four prior log records.
 //
-// State lives at module scope, not on disk. This app deploys to Vercel where a
-// request time filesystem write is not available, so a decision moves the
-// ledger for as long as that server instance stays warm and the seed values are
-// what a cold instance starts from. That is enough for the demo and it is why
-// syncAttribution() here applies nothing: there is no exchange to read.
+// Since Phase 3 it holds none of that state itself. Every method reads the
+// round snapshot through lib/store/round.ts and every mutation is one
+// readRound() plus one writeRound(), so a decision survives a page reload when
+// the KV keys are set and survives everything short of a process restart when
+// they are not. syncAttribution() still applies nothing here: there is no
+// exchange to read, and the seeded ledger is already the finished number.
 
 import { applyFillToThesis } from "../attribution";
-import {
-  account as seedAccount,
-  logs as seedLogs,
-  markets as seedMarkets,
-  positions as seedPositions,
-  signals as seedSignals,
-  theses as seedTheses,
-} from "../data/seed";
-import type { AiLogRecord, ConsoleSnapshot, MarketRow, Position, Signal, Thesis } from "../types";
+import type { AiLogRecord, Thesis } from "../types";
+import { queuedCount, readRound, writeRound } from "./round";
 import type { AttributionSync, LedgerStore, WeexResponse } from "./types";
-
-function clone<T extends object>(rows: readonly T[]): T[] {
-  return rows.map((row) => ({ ...row }));
-}
-
-interface LedgerState {
-  account: ConsoleSnapshot["account"];
-  theses: Thesis[];
-  positions: Position[];
-  markets: MarketRow[];
-  signals: Signal[];
-  logs: AiLogRecord[];
-  /** orderIds already written to the ledger, so attribution is idempotent. */
-  countedOrderIds: Set<string>;
-}
-
-const state: LedgerState = {
-  account: { ...seedAccount },
-  theses: clone(seedTheses),
-  positions: clone(seedPositions),
-  markets: clone(seedMarkets),
-  signals: clone(seedSignals),
-  logs: clone(seedLogs),
-  countedOrderIds: new Set<string>(),
-};
-
-/**
- * Shared state, not a second copy. The WEEX store attributes real fills onto
- * these same rows and delegates every read it cannot answer back here, so no
- * method ever returns an empty list and blanks a panel.
- */
-export function ledgerState(): LedgerState {
-  return state;
-}
-
-function requireThesis(id: string): Thesis {
-  const found = state.theses.find((t) => t.id === id);
-  if (!found) throw new Error(`unknown thesis ${id}`);
-  return found;
-}
-
-function replaceThesis(next: Thesis): Thesis {
-  state.theses = state.theses.map((t) => (t.id === next.id ? next : t));
-  return next;
-}
 
 export const seedStore: LedgerStore = {
   mode: "fake",
 
   async listTheses() {
-    return state.theses;
+    return (await readRound()).theses;
   },
 
   async getThesis(id) {
-    return state.theses.find((t) => t.id === id) ?? null;
+    return (await readRound()).theses.find((t) => t.id === id) ?? null;
   },
 
   async spendQuota(thesisId, notionalUsdt) {
-    const current = requireThesis(thesisId);
-    return replaceThesis({
+    const state = await readRound();
+    const current = state.theses.find((t) => t.id === thesisId);
+    if (!current) throw new Error(`unknown thesis ${thesisId}`);
+
+    const next: Thesis = {
       ...current,
       quotaUsedUsdt: Math.round((current.quotaUsedUsdt + notionalUsdt) * 10) / 10,
+    };
+    await writeRound({
+      ...state,
+      theses: state.theses.map((t) => (t.id === next.id ? next : t)),
     });
+    return next;
   },
 
   async applyRealized(thesisId, realizedUsdt, closedAt) {
-    const current = requireThesis(thesisId);
-    return replaceThesis(applyFillToThesis(current, realizedUsdt, closedAt));
+    const state = await readRound();
+    const current = state.theses.find((t) => t.id === thesisId);
+    if (!current) throw new Error(`unknown thesis ${thesisId}`);
+
+    const next = applyFillToThesis(current, realizedUsdt, closedAt);
+    await writeRound({
+      ...state,
+      theses: state.theses.map((t) => (t.id === next.id ? next : t)),
+    });
+    return next;
   },
 
   async listPositions() {
-    return state.positions;
+    return (await readRound()).positions;
   },
 
   async listMarkets() {
-    return state.markets;
+    return (await readRound()).markets;
   },
 
   async listSignals() {
-    return state.signals;
+    return (await readRound()).signals;
   },
 
   async getSignal(id) {
-    return state.signals.find((s) => s.id === id) ?? null;
+    return (await readRound()).signals.find((s) => s.id === id) ?? null;
   },
 
   async listLogs() {
-    return state.logs;
+    return (await readRound()).logs;
   },
 
-  async enqueueLog(record) {
-    state.logs = [record, ...state.logs.filter((l) => l.id !== record.id)];
+  async enqueueLog(record: AiLogRecord) {
+    const state = await readRound();
+    await writeRound({
+      ...state,
+      logs: [record, ...state.logs.filter((l) => l.id !== record.id)],
+    });
   },
 
   async markLogSent(id: string, response: WeexResponse) {
-    state.logs = state.logs.map((l) =>
-      l.id === id ? { ...l, queued: false, weexResponse: response } : l,
-    );
+    const state = await readRound();
+    await writeRound({
+      ...state,
+      logs: state.logs.map((l) => (l.id === id ? { ...l, queued: false, weexResponse: response } : l)),
+    });
   },
 
   async queueDepth() {
-    return state.logs.filter((l) => l.queued).length;
+    return queuedCount(await readRound());
   },
 
   async syncAttribution(): Promise<AttributionSync> {
     // Nothing to read. The seeded ledger is already the finished number.
-    return { applied: 0, theses: state.theses };
+    return { applied: 0, theses: (await readRound()).theses };
   },
 
   async account() {
-    return state.account;
+    return (await readRound()).account;
   },
 
   async snapshot() {
+    const state = await readRound();
     return {
       account: state.account,
       theses: state.theses,

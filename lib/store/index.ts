@@ -32,3 +32,8 @@ export function getStore(): LedgerStore {
 }
 
 export type { LedgerStore } from "./types";
+
+// The round snapshot itself. Pages and routes that need the whole state at once
+// (the console server render, /api/round, /api/reset, /api/decide, /api/attribute)
+// read it here rather than assembling it out of six LedgerStore calls.
+export { freshRound, queuedCount, readRound, resetRound, viewOf, writeRound } from "./round";

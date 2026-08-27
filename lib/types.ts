@@ -138,6 +138,59 @@ export interface Decision {
  */
 export type ApiResponse<T> = { ok: true; data: T } | ({ ok: false } & SteleError);
 
+/**
+ * One decision as the round remembers it. The key is the idempotency key the
+ * browser sent, so a repeat of the same click replays the stored answer instead
+ * of placing a second order.
+ */
+export interface StoredDecision {
+  key: string;
+  decision: Decision;
+}
+
+/**
+ * The whole round as one JSON blob. This is what lib/store/round.ts reads and
+ * rewrites, and it is the only mutable state in the product.
+ *
+ * Everything here has to survive JSON.stringify, which is why the two "already
+ * handled" collections are arrays rather than Sets.
+ */
+export interface RoundState {
+  account: ConsoleSnapshot["account"];
+  theses: Thesis[];
+  positions: Position[];
+  markets: MarketRow[];
+  signals: Signal[];
+  logs: AiLogRecord[];
+  decisions: StoredDecision[];
+  /** Signals the round has already answered. The queue hides them. */
+  handledSignalIds: string[];
+  /** Idempotency keys already spent. Checked before any outbound order. */
+  seenKeys: string[];
+  /** orderIds already folded onto the ledger, so attribution is safe to rerun. */
+  countedOrderIds: string[];
+  updatedAt: string;
+}
+
+/**
+ * The round as the browser sees it. One shape, three sources: the server render,
+ * the /api/decide answer and the /api/round refetch all hand back exactly this,
+ * so the console has a single apply path and no chained effects.
+ */
+export interface RoundView {
+  account: ConsoleSnapshot["account"];
+  theses: Thesis[];
+  positions: Position[];
+  markets: MarketRow[];
+  signals: Signal[];
+  logs: AiLogRecord[];
+  decisions: Decision[];
+  handledSignalIds: string[];
+  queueDepth: number;
+  /** Half of the idempotency key the console sends back. */
+  updatedAt: string;
+}
+
 /** One read of the whole console state. What the adapter hands to /console. */
 export interface ConsoleSnapshot {
   account: {

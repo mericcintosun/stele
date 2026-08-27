@@ -9,13 +9,17 @@
 // Everything WEEX cannot answer (market rows, the signal queue, prior log
 // records, the account strip) delegates to the seed store, so no panel is ever
 // empty and no read path has a second failure mode.
+//
+// Since Phase 3 both stores read and write the same round snapshot, so an
+// attributed ledger persists exactly as far as a decision does.
 
 import { attribute } from "../attribution";
 import { CLIENT_OID_PREFIX } from "../config";
 import { trace } from "../observability";
 import type { ClosedFill } from "../types";
 import { closedFills, venueFromEnv } from "../weex";
-import { ledgerState, seedStore } from "./seed";
+import { readRound, writeRound } from "./round";
+import { seedStore } from "./seed";
 import type { AttributionSync, LedgerStore } from "./types";
 
 export const weexStore: LedgerStore = {
@@ -23,7 +27,7 @@ export const weexStore: LedgerStore = {
   mode: "real",
 
   async syncAttribution(): Promise<AttributionSync> {
-    const state = ledgerState();
+    const state = await readRound();
 
     let fills: ClosedFill[];
     try {
@@ -35,16 +39,20 @@ export const weexStore: LedgerStore = {
       return { applied: 0, theses: state.theses };
     }
 
-    const result = attribute(state.theses, fills, {
-      prefix: CLIENT_OID_PREFIX,
-      counted: state.countedOrderIds,
+    if (fills.length === 0) return { applied: 0, theses: state.theses };
+
+    const counted = new Set(state.countedOrderIds);
+    const result = attribute(state.theses, fills, { prefix: CLIENT_OID_PREFIX, counted });
+    for (const fill of fills) counted.add(fill.orderId);
+
+    const next = await writeRound({
+      ...state,
+      theses: result.theses,
+      countedOrderIds: [...counted],
     });
 
-    for (const fill of fills) state.countedOrderIds.add(fill.orderId);
-    state.theses = result.theses;
-
     trace("attribution applied", { applied: result.applied, fills: fills.length });
-    return { applied: result.applied, theses: state.theses };
+    return { applied: result.applied, theses: next.theses };
   },
 
   async snapshot() {
