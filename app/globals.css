@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* Design tokens: the single source of visual truth. The dark decision is made
+   once, here. Components use token-backed classes only; a new color is added
+   here first, never inline. */
+@theme {
+  --color-bg: #080b11;
+  --color-panel: #10151f;
+  --color-panel2: #171e2b;
+  --color-line: #212b3d;
+  --color-ink: #e8edf6;
+  --color-mut: #8794aa;
+  --color-acc: #5eead4;
+  --color-warn: #fbbf24;
+  --color-bad: #f87171;
+  --color-ok: #34d399;
+
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+body {
+  background:
+    radial-gradient(900px 480px at 50% -8%, rgba(94, 234, 212, 0.07), transparent 70%),
+    var(--color-bg);
+  color: var(--color-ink);
+}
+
+/* Panels scroll a lot in this product. Keep their scrollbars from breaking the
+   dark surface. */
+* {
+  scrollbar-color: var(--color-line) transparent;
+  scrollbar-width: thin;
+}

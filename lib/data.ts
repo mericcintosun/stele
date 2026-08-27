@@ -1,0 +1,437 @@
+// Seed data for the Stele decision console.
+//
+// Everything here is a plausible snapshot of an agent that has already traded
+// one weekly round on WEEX perpetuals: six named theses, their closed-trade
+// ledgers, three open positions carrying exchange-side TP/SL, the market rows
+// the agent watches, four pending signals, and the uploadAiLog records the
+// agent has already written to the exchange.
+//
+// Replace this file with a read from the real ledger (SQLite or Postgres) once
+// the agent loop is running. The shapes below are the contract.
+
+export type ThesisState = "active" | "throttled" | "halted";
+
+export interface Thesis {
+  /** Stable id used to tag every order and every uploadAiLog record. */
+  id: string;
+  name: string;
+  /** The written entry condition. Fixed before the round starts, never edited mid round. */
+  precondition: string;
+  symbols: string[];
+  /** Closed trades only. Open positions do not touch the ledger. */
+  trades: number;
+  wins: number;
+  realizedPnlUsdt: number;
+  /** Realized PnL as a percent of the capital this thesis has deployed. */
+  realizedPnlPct: number;
+  maxDrawdownPct: number;
+  /** Cumulative notional this thesis may deploy across the whole round. */
+  quotaUsdt: number;
+  quotaUsedUsdt: number;
+  lastTradedAt: string;
+}
+
+export interface Position {
+  id: string;
+  symbol: string;
+  side: "long" | "short";
+  thesisId: string;
+  entryPrice: number;
+  markPrice: number;
+  sizeContracts: number;
+  notionalUsdt: number;
+  leverage: number;
+  /** Exchange-side orders, resting on WEEX. They survive an agent crash. */
+  takeProfit: number;
+  stopLoss: number;
+  unrealizedPnlUsdt: number;
+  openedAt: string;
+}
+
+export interface MarketRow {
+  symbol: string;
+  label: string;
+  lastPrice: number;
+  change24hPct: number;
+  fundingRatePct: number;
+  oiChange1hPct: number;
+}
+
+export interface Signal {
+  id: string;
+  symbol: string;
+  headline: string;
+  fundingRatePct: number;
+  oiChange1hPct: number;
+  suggestedSide: "long" | "short";
+  /** Which written thesis this signal claims to satisfy. */
+  thesisId: string;
+}
+
+export type LogStage =
+  | "signal"
+  | "thesis_match"
+  | "sizing"
+  | "order"
+  | "rejection"
+  | "attribution";
+
+/** One POST to /capi/v3/order/uploadAiLog. Field names match the WEEX schema. */
+export interface AiLogRecord {
+  id: string;
+  stage: LogStage;
+  model: string;
+  input: string;
+  output: string;
+  /** WEEX caps this at 1000 characters. */
+  explanation: string;
+  orderId: string | null;
+  thesisId: string;
+  postedAt: string;
+  /** Null while the record sits in the local queue waiting for allowlist approval. */
+  weexResponse: { code: string; msg: string; requestTime: number } | null;
+  queued: boolean;
+}
+
+export interface Fill {
+  venue: "sim" | "live";
+  price: number;
+  orderId: string;
+  filledAt: string;
+}
+
+export interface Decision {
+  signalId: string;
+  thesisId: string;
+  verdict: "approved" | "reduced" | "rejected";
+  side: "long" | "short";
+  symbol: string;
+  sizeMultiplier: number;
+  notionalUsdt: number;
+  entryPrice: number;
+  takeProfit: number;
+  stopLoss: number;
+  reason: string;
+  /** Which link in the model chain answered: the sponsor SDK, the local CLI, or the offline stub. */
+  source: "anthropic" | "claude-cli" | "mock";
+  aiLog: AiLogRecord;
+  shadowFill: Fill | null;
+  liveFill: Fill | null;
+}
+
+export const ACCOUNT = {
+  uid: "WX-88214077",
+  equityUsdt: 1000,
+  availableUsdt: 386.4,
+  round: 2,
+  totalRounds: 5,
+  side: "AI Team",
+  maxLeverage: 20,
+};
+
+export const theses: Thesis[] = [
+  {
+    id: "TH-SQZ-LONG",
+    name: "Crowded Short Squeeze",
+    precondition:
+      "Funding under -0.02% for three consecutive settlements while open interest adds more than 4% in an hour. Shorts are crowded and paying, so take the squeeze long.",
+    symbols: ["cmt_solusdt", "cmt_ethusdt"],
+    trades: 7,
+    wins: 3,
+    realizedPnlUsdt: -21.4,
+    realizedPnlPct: -2.14,
+    maxDrawdownPct: 5.8,
+    quotaUsdt: 150,
+    quotaUsedUsdt: 148.2,
+    lastTradedAt: "2026-08-27T19:42:00Z",
+  },
+  {
+    id: "TH-OI-BREAK",
+    name: "Open Interest Breakout",
+    precondition:
+      "Open interest up more than 6% while price clears the prior 4 hour high and taker buy ratio holds above 0.58. Enter on the retest, not the break.",
+    symbols: ["cmt_solusdt", "cmt_btcusdt"],
+    trades: 11,
+    wins: 7,
+    realizedPnlUsdt: 38.6,
+    realizedPnlPct: 3.21,
+    maxDrawdownPct: 2.4,
+    quotaUsdt: 150,
+    quotaUsedUsdt: 92.5,
+    lastTradedAt: "2026-08-28T04:11:00Z",
+  },
+  {
+    id: "TH-BASIS-REV",
+    name: "Basis Reversion",
+    precondition:
+      "Quarterly basis stretched past 1.4 standard deviations annualized while spot volume stays flat. Short the perp, hold to the mean or 36 hours, whichever lands first.",
+    symbols: ["cmt_ethusdt", "cmt_btcusdt"],
+    trades: 9,
+    wins: 6,
+    realizedPnlUsdt: 17.9,
+    realizedPnlPct: 1.62,
+    maxDrawdownPct: 2.9,
+    quotaUsdt: 150,
+    quotaUsedUsdt: 61,
+    lastTradedAt: "2026-08-28T02:35:00Z",
+  },
+  {
+    id: "TH-LIQ-SWEEP",
+    name: "Liquidation Sweep Reclaim",
+    precondition:
+      "Price sweeps a 24 hour liquidity pocket, prints more than 2M USDT of liquidations inside 5 minutes, then reclaims the swept level within 3 candles.",
+    symbols: ["cmt_solusdt", "cmt_ethusdt", "cmt_btcusdt"],
+    trades: 14,
+    wins: 8,
+    realizedPnlUsdt: 26.1,
+    realizedPnlPct: 1.84,
+    maxDrawdownPct: 4.1,
+    quotaUsdt: 150,
+    quotaUsedUsdt: 118.4,
+    lastTradedAt: "2026-08-28T06:02:00Z",
+  },
+  {
+    id: "TH-VOL-CRUSH",
+    name: "Post Event Volatility Crush",
+    precondition:
+      "The implied move is already realized within 30 minutes of a scheduled macro print. Sell the expansion back toward the pre-event mean.",
+    symbols: ["cmt_btcusdt"],
+    trades: 5,
+    wins: 2,
+    realizedPnlUsdt: -6.8,
+    realizedPnlPct: -0.71,
+    maxDrawdownPct: 3.3,
+    quotaUsdt: 150,
+    quotaUsedUsdt: 44,
+    lastTradedAt: "2026-08-27T13:20:00Z",
+  },
+  {
+    id: "TH-TREND-PB",
+    name: "Trend Pullback to Anchored VWAP",
+    precondition:
+      "Price holds above the VWAP anchored to the weekly open, pulls back within 0.4% of it, and funding stays positive but under 0.01%.",
+    symbols: ["cmt_btcusdt", "cmt_solusdt"],
+    trades: 12,
+    wins: 8,
+    realizedPnlUsdt: 31.2,
+    realizedPnlPct: 2.6,
+    maxDrawdownPct: 2.1,
+    quotaUsdt: 150,
+    quotaUsedUsdt: 104.7,
+    lastTradedAt: "2026-08-28T05:48:00Z",
+  },
+];
+
+export const positions: Position[] = [
+  {
+    id: "POS-4471",
+    symbol: "cmt_solusdt",
+    side: "long",
+    thesisId: "TH-OI-BREAK",
+    entryPrice: 142.18,
+    markPrice: 144.06,
+    sizeContracts: 1.7,
+    notionalUsdt: 241.71,
+    leverage: 5,
+    takeProfit: 148.16,
+    stopLoss: 139.34,
+    unrealizedPnlUsdt: 3.2,
+    openedAt: "2026-08-28T04:11:00Z",
+  },
+  {
+    id: "POS-4468",
+    symbol: "cmt_ethusdt",
+    side: "short",
+    thesisId: "TH-BASIS-REV",
+    entryPrice: 3128.4,
+    markPrice: 3116.75,
+    sizeContracts: 0.06,
+    notionalUsdt: 187.7,
+    leverage: 4,
+    takeProfit: 3065.83,
+    stopLoss: 3190.97,
+    unrealizedPnlUsdt: 0.7,
+    openedAt: "2026-08-28T02:35:00Z",
+  },
+  {
+    id: "POS-4463",
+    symbol: "cmt_btcusdt",
+    side: "long",
+    thesisId: "TH-TREND-PB",
+    entryPrice: 61840.5,
+    markPrice: 62215,
+    sizeContracts: 0.003,
+    notionalUsdt: 185.52,
+    leverage: 5,
+    takeProfit: 63695.72,
+    stopLoss: 60603.69,
+    unrealizedPnlUsdt: 1.12,
+    openedAt: "2026-08-28T05:48:00Z",
+  },
+];
+
+export const markets: MarketRow[] = [
+  {
+    symbol: "cmt_solusdt",
+    label: "SOL / USDT perp",
+    lastPrice: 144.06,
+    change24hPct: 2.41,
+    fundingRatePct: -0.0241,
+    oiChange1hPct: 4.8,
+  },
+  {
+    symbol: "cmt_ethusdt",
+    label: "ETH / USDT perp",
+    lastPrice: 3116.75,
+    change24hPct: -0.62,
+    fundingRatePct: 0.0068,
+    oiChange1hPct: 1.2,
+  },
+  {
+    symbol: "cmt_btcusdt",
+    label: "BTC / USDT perp",
+    lastPrice: 62215,
+    change24hPct: 0.94,
+    fundingRatePct: 0.0092,
+    oiChange1hPct: 2.6,
+  },
+];
+
+export const signals: Signal[] = [
+  {
+    id: "SIG-9104",
+    symbol: "cmt_solusdt",
+    headline:
+      "SOL funding printed -0.0241% for a third settlement while open interest added 4.8% in an hour.",
+    fundingRatePct: -0.0241,
+    oiChange1hPct: 4.8,
+    suggestedSide: "long",
+    thesisId: "TH-SQZ-LONG",
+  },
+  {
+    id: "SIG-9107",
+    symbol: "cmt_btcusdt",
+    headline:
+      "BTC pulled back 0.31% into the weekly anchored VWAP and reclaimed it on the next candle. Funding 0.0092%.",
+    fundingRatePct: 0.0092,
+    oiChange1hPct: 2.6,
+    suggestedSide: "long",
+    thesisId: "TH-TREND-PB",
+  },
+  {
+    id: "SIG-9111",
+    symbol: "cmt_ethusdt",
+    headline:
+      "ETH swept the 24 hour low with 2.4M USDT of liquidations in 5 minutes, then reclaimed the level two candles later.",
+    fundingRatePct: 0.0068,
+    oiChange1hPct: 1.2,
+    suggestedSide: "long",
+    thesisId: "TH-LIQ-SWEEP",
+  },
+  {
+    id: "SIG-9115",
+    symbol: "cmt_solusdt",
+    headline:
+      "SOL open interest added 6.4% while price cleared the prior 4 hour high. Taker buy ratio 0.61.",
+    fundingRatePct: -0.0241,
+    oiChange1hPct: 6.4,
+    suggestedSide: "long",
+    thesisId: "TH-OI-BREAK",
+  },
+];
+
+/** Records the agent has already written to the exchange this round. */
+export const priorLogs: AiLogRecord[] = [
+  {
+    id: "LOG-2318",
+    stage: "attribution",
+    model: "claude-opus-5",
+    thesisId: "TH-SQZ-LONG",
+    input: "Position POS-4459 closed at 141.02, opened 143.88, size 1.4 SOL, side long.",
+    output: '{"thesis":"TH-SQZ-LONG","realized_usdt":-4.0,"ledger_after_pct":-2.14}',
+    explanation:
+      "Closed fill written back to TH-SQZ-LONG. Seventh closed trade on this thesis, third win. Ledger moves from -1.74% to -2.14% of deployed capital, which crosses the halt threshold. Next signal matching this thesis gets a zero size multiplier until the round rolls.",
+    orderId: "1102938471",
+    postedAt: "2026-08-27T19:42:11Z",
+    weexResponse: { code: "00000", msg: "success", requestTime: 1787168531411 },
+    queued: false,
+  },
+  {
+    id: "LOG-2321",
+    stage: "order",
+    model: "claude-opus-5",
+    thesisId: "TH-OI-BREAK",
+    input:
+      "cmt_solusdt OI +6.1% over 1h, price cleared 4h high 141.90, taker buy ratio 0.59, funding -0.0198%.",
+    output:
+      '{"thesis":"TH-OI-BREAK","side":"long","notional_usdt":241.71,"tp":148.16,"sl":139.34}',
+    explanation:
+      "Preconditions for TH-OI-BREAK are met on the retest, not the break. Ledger is +3.21% over 11 closed trades with a 2.4% max drawdown, so the valve leaves the multiplier at 1.0. Quota used 92.5 of 150 USDT, this order takes it to 241.71 gross with 5x leverage on 48.3 USDT of margin. TP and SL are placed exchange side with the entry.",
+    orderId: "1103047722",
+    postedAt: "2026-08-28T04:11:03Z",
+    weexResponse: { code: "00000", msg: "success", requestTime: 1787200263118 },
+    queued: false,
+  },
+  {
+    id: "LOG-2324",
+    stage: "sizing",
+    model: "claude-opus-5",
+    thesisId: "TH-VOL-CRUSH",
+    input: "CPI print at 12:30 UTC, realized move 0.81% against an implied 0.86% within 22 minutes.",
+    output: '{"thesis":"TH-VOL-CRUSH","multiplier":0.5,"reason":"ledger_negative"}',
+    explanation:
+      "TH-VOL-CRUSH sits at -0.71% over 5 closed trades. That is under the throttle line but above the halt line, so the valve halves the size rather than closing the thesis. Order goes out at 60 USDT notional instead of 120.",
+    orderId: "1103012004",
+    postedAt: "2026-08-27T13:20:44Z",
+    weexResponse: { code: "00000", msg: "success", requestTime: 1787159644902 },
+    queued: false,
+  },
+  {
+    id: "LOG-2327",
+    stage: "signal",
+    model: "claude-opus-5",
+    thesisId: "TH-LIQ-SWEEP",
+    input: "cmt_ethusdt swept 3098.20, 2.41M USDT liquidations in 5m, reclaim confirmed on candle 2.",
+    output: '{"thesis":"TH-LIQ-SWEEP","match":true,"confidence":0.72}',
+    explanation:
+      "Sweep and reclaim both confirmed inside the written window. Held in the local queue because the UID is not on the uploadAiLog allowlist yet. The queue replays in order the moment approval lands, so no decision in this round is missing its receipt.",
+    orderId: null,
+    postedAt: "2026-08-28T06:02:19Z",
+    weexResponse: null,
+    queued: true,
+  },
+];
+
+export function thesisById(id: string): Thesis | undefined {
+  return theses.find((t) => t.id === id);
+}
+
+export function signalById(id: string): Signal | undefined {
+  return signals.find((s) => s.id === id);
+}
+
+export function marketFor(symbol: string): MarketRow | undefined {
+  return markets.find((m) => m.symbol === symbol);
+}
+
+/** Signed USDT string, stable between server and client render. */
+export function usdt(n: number): string {
+  const sign = n < 0 ? "-" : "+";
+  return `${sign}${Math.abs(n).toFixed(2)}`;
+}
+
+export function pct(n: number, digits = 2): string {
+  const sign = n < 0 ? "-" : "+";
+  return `${sign}${Math.abs(n).toFixed(digits)}%`;
+}
+
+/** ISO string to "Aug 28 04:11 UTC" without touching the browser locale. */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export function stamp(iso: string): string {
+  const d = new Date(iso);
+  const mon = MONTHS[d.getUTCMonth()];
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${mon} ${day} ${hh}:${mm} UTC`;
+}
