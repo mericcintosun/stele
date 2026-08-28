@@ -12,35 +12,15 @@ import Image from "next/image";
 import Link from "next/link";
 import LedgerPattern from "@/components/brand/LedgerPattern";
 import HeroLedger from "@/components/brand/HeroLedger";
+import LoopSteps from "@/components/LoopSteps";
+import Reveal from "@/components/Reveal";
+import CopyChip from "@/components/CopyChip";
 import { buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardTitle } from "@/components/ui/card";
 
 const REPO_URL = "https://github.com/mericcintosun/stele";
 const HACKATHON_URL = "https://dorahacks.io/hackathon/weex-ai-wars-2-tw";
 const DEMO_URL = "https://github.com/mericcintosun/stele/blob/main/DEMO.md";
-
-const HOW_IT_WORKS = [
-  {
-    step: "01",
-    title: "Every order belongs to a written thesis",
-    body: "Six theses, each with a name and an entry condition written before the round starts. A signal that matches none of them never becomes an order.",
-  },
-  {
-    step: "02",
-    title: "The same decision goes to the compliance endpoint",
-    body: "stage, model, input, output and a 1000 character explanation are posted to /capi/v3/order/uploadAiLog. The returned orderId pairs the fill with the thesis.",
-  },
-  {
-    step: "03",
-    title: "Closed PnL is written back to the thesis",
-    body: "When a position closes, its realized result lands on the thesis that opened it. Press Close at stop on the console and watch one thesis change state. That ledger is the only thing carried from round to round.",
-  },
-  {
-    step: "04",
-    title: "The next order is sized from that ledger",
-    body: "Not from total account performance. A thesis under the halt line goes to zero capital and the agent refuses its own order, then posts the refusal too.",
-  },
-];
 
 const CRITERIA = [
   {
@@ -78,39 +58,40 @@ const COMPARISON = [
 export default function Home() {
   return (
     <div className="space-y-20 sm:space-y-24">
-      {/* Hero. İki kolon: solda iddia ve tek birincil aksiyon, sağda ürünün
-          kendisi (konsolun gerçek seed sayılarıyla ledger önizlemesi). Desen
-          yalnızca sağ yarıda ve maskeli: metnin altından çizgi geçmez. */}
+      {/* Hero. Sahne: solda iddia + tek birincil aksiyon (sıralı fade-up),
+          sağda kompoze sahne: Meshy anıtı tam görünür yüzer, ledger kartı
+          anıtın sol altına biner (obje + yüzen UI). */}
       <header className="relative isolate overflow-hidden rounded-2xl border border-line bg-panel/40 px-5 py-10 sm:px-8 sm:py-12 lg:px-12">
-        <LedgerPattern className="pointer-events-none absolute right-0 top-0 -z-10 hidden h-full w-1/2 text-acc opacity-60 [mask-image:linear-gradient(to_left,black,transparent)] lg:block" />
+        <LedgerPattern className="pointer-events-none absolute right-0 top-0 -z-20 hidden h-full w-1/2 text-acc opacity-40 [mask-image:linear-gradient(to_left,black,transparent)] lg:block" />
 
-        <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)] lg:gap-14">
+        <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)]">
           <div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="anim-fade-up flex flex-wrap items-center gap-3" style={{ ["--d" as string]: "0ms" }}>
               <span className="rounded-full border border-acc/40 bg-acc/10 px-2.5 py-1 font-mono text-[11px] text-acc">
                 WEEX AI Wars II · AI Team
               </span>
               <span className="font-mono text-[11px] text-mut">5 live weekly rounds</span>
             </div>
 
-            <h1 className="type-display mt-6">
+            <h1 className="type-display anim-fade-up mt-6" style={{ ["--d" as string]: "90ms" }}>
               Every order carries <span className="text-acc">its reason.</span>
             </h1>
 
-            <p className="type-lead measure mt-5 text-ink/90">
+            <p className="type-lead measure anim-fade-up mt-5 text-ink/90" style={{ ["--d" as string]: "180ms" }}>
               Stele is a WEEX perpetual futures agent that ties every order to a named thesis,
               keeps a realized PnL ledger for each one, and cuts the capital of any thesis that is
               losing money.
             </p>
 
-            <p className="type-body measure mt-4 text-mut">
+            <p className="type-body measure anim-fade-up mt-4 text-mut" style={{ ["--d" as string]: "260ms" }}>
               The walk takes ninety seconds: press Run decision loop on the SOL signal and watch
               the agent refuse its own order, then post the refusal to the exchange.
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
-              <Link href="/console" className={buttonClass({ variant: "primary", size: "md" })}>
+            <div className="anim-fade-up mt-8 flex flex-wrap items-center gap-x-5 gap-y-3" style={{ ["--d" as string]: "340ms" }}>
+              <Link href="/console" className={`group ${buttonClass({ variant: "primary", size: "md" })}`}>
                 Watch the agent refuse its own order
+                <span className="ml-1.5 inline-block transition-transform duration-200 group-hover:translate-x-1">→</span>
               </Link>
               <Link
                 href="#loop"
@@ -120,7 +101,7 @@ export default function Home() {
               </Link>
             </div>
 
-            <dl className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-5 font-mono text-[11px] text-mut">
+            <dl className="anim-fade-up mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-5 font-mono text-[11px] text-mut" style={{ ["--d" as string]: "420ms" }}>
               <div className="flex items-baseline gap-1.5">
                 <dt>rounds</dt>
                 <dd className="text-ink">5</dd>
@@ -140,10 +121,8 @@ export default function Home() {
             </dl>
           </div>
 
-          <div className="relative lg:pr-40">
-            {/* Meshy üretimi marka nesnesi: taşa kazınmış teal devre hatlı stel.
-                Kart hafif solda durur, anıt sağında dikey ortalı bir şerit
-                olarak görünür; kenarları radyal maskeyle zemine erir. */}
+          <div className="anim-fade-up relative mx-auto w-full max-w-[420px] lg:h-[560px] lg:max-w-none" style={{ ["--d" as string]: "200ms" }}>
+            {/* Meshy anıtı: sahnenin sağında TAM görünür, yavaşça yüzer */}
             <Image
               src="/brand/stele-monument.png"
               alt=""
@@ -151,20 +130,26 @@ export default function Home() {
               width={520}
               height={520}
               priority
-              className="pointer-events-none absolute -right-10 top-1/2 -z-10 hidden w-[420px] max-w-none -translate-y-1/2 [mask-image:radial-gradient(closest-side,black_68%,transparent_100%)] lg:block"
+              className="anim-float pointer-events-none absolute -right-6 top-1/2 -z-10 hidden w-[360px] max-w-none -translate-y-1/2 [mask-image:radial-gradient(closest-side,black_70%,transparent_100%)] lg:block"
             />
-            <HeroLedger />
+            {/* Ledger kartı anıtın sol altına biner */}
+            <div className="lg:absolute lg:bottom-4 lg:left-0 lg:w-[400px]">
+              <HeroLedger />
+            </div>
           </div>
         </div>
       </header>
 
       {/* Section 1: the failure mode and the mechanism */}
       <section className="space-y-6">
-        <p className="type-body measure text-mut">
-          Open the screen and you see one list: the reasons the agent used to open trades, and what
-          each one has made or lost so far. A losing reason gets a smaller order. A reason that
-          keeps losing gets no order at all.
-        </p>
+        <Reveal>
+          <p className="type-body measure text-mut">
+            Open the screen and you see one list: the reasons the agent used to open trades, and
+            what each one has made or lost so far. A losing reason gets a smaller order. A reason
+            that keeps losing gets no order at all.
+          </p>
+        </Reveal>
+        <Reveal delay={80}>
         <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardBody pad="lg" className="space-y-3">
@@ -191,7 +176,7 @@ export default function Home() {
             </CardTitle>
             <p className="type-body text-mut">
               WEEX already requires every AI participant to post decision logs to{" "}
-              <span className="font-mono text-xs text-ink">/capi/v3/order/uploadAiLog</span>, and
+              <CopyChip text="/capi/v3/order/uploadAiLog" />, and
               disqualifies teams that cannot produce valid evidence of AI participation. Most teams
               treat that as paperwork.
             </p>
@@ -203,24 +188,15 @@ export default function Home() {
           </CardBody>
         </Card>
         </div>
+        </Reveal>
       </section>
 
       {/* Section 2: the loop. The hero's "How the loop works" link lands here. */}
       <section id="loop" className="scroll-mt-24 space-y-6">
         <h2 className="type-h2">The loop, four steps</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {HOW_IT_WORKS.map((s) => (
-            <Card key={s.step}>
-              <CardBody pad="md">
-                <span className="font-mono text-xs text-acc">{s.step}</span>
-                <CardTitle level={3} className="mt-2">
-                  {s.title}
-                </CardTitle>
-                <p className="mt-1.5 text-sm leading-relaxed text-mut">{s.body}</p>
-              </CardBody>
-            </Card>
-          ))}
-        </div>
+        <Reveal>
+          <LoopSteps />
+        </Reveal>
       </section>
 
       {/* Section 3: the three ranking criteria, then the field */}
@@ -252,7 +228,7 @@ export default function Home() {
               </thead>
               <tbody className="divide-y divide-line">
                 {COMPARISON.map((c) => (
-                  <tr key={c.name}>
+                  <tr key={c.name} className="transition-colors hover:bg-panel2/50">
                     <td className="px-5 py-3 font-medium">{c.name}</td>
                     <td className="px-5 py-3 text-mut">{c.what}</td>
                     <td className="px-5 py-3 text-mut">{c.gap}</td>
