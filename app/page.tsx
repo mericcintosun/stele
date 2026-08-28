@@ -16,7 +16,7 @@ import LoopSteps from "@/components/LoopSteps";
 import Reveal from "@/components/Reveal";
 import CopyChip from "@/components/CopyChip";
 import { buttonClass } from "@/components/ui/button";
-import { Card, CardBody, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 
 const REPO_URL = "https://github.com/mericcintosun/stele";
 const HACKATHON_URL = "https://dorahacks.io/hackathon/weex-ai-wars-2-tw";
@@ -58,9 +58,10 @@ const COMPARISON = [
 export default function Home() {
   return (
     <div className="space-y-20 sm:space-y-24">
-      {/* Hero. Sahne: solda iddia + tek birincil aksiyon (sıralı fade-up),
-          sağda kompoze sahne: Meshy anıtı tam görünür yüzer, ledger kartı
-          anıtın sol altına biner (obje + yüzen UI). */}
+      {/* Hero, composed as one scene: on the left the claim and the single
+          primary action, entering in sequence (staggered fade-up); on the right
+          the Meshy monument floats fully visible with the ledger card sitting
+          over its lower left corner (object plus floating UI). */}
       <header className="relative isolate overflow-hidden rounded-2xl border border-line bg-panel/40 px-5 py-10 sm:px-8 sm:py-12 lg:px-12">
         <LedgerPattern className="pointer-events-none absolute right-0 top-0 -z-20 hidden h-full w-1/2 text-acc opacity-40 [mask-image:linear-gradient(to_left,black,transparent)] lg:block" />
 
@@ -117,7 +118,7 @@ export default function Home() {
           </div>
 
           <div className="anim-fade-up relative mx-auto w-full max-w-[420px] lg:h-[560px] lg:max-w-none" style={{ ["--d" as string]: "200ms" }}>
-            {/* Meshy anıtı: sahnenin sağında TAM görünür, yavaşça yüzer */}
+            {/* The Meshy monument: fully visible on the right of the scene, floating slowly */}
             <Image
               src="/brand/stele-monument.png"
               alt=""
@@ -127,9 +128,15 @@ export default function Home() {
               priority
               className="anim-float pointer-events-none absolute -right-6 top-1/2 -z-10 hidden w-[360px] max-w-none -translate-y-1/2 [mask-image:radial-gradient(closest-side,black_70%,transparent_100%)] lg:block"
             />
-            {/* Ledger kartı anıtın sol altına biner */}
+            {/* The ledger card sits over the monument's lower left corner. The
+                source line is outside the card on purpose, so it never rotates
+                with the tilt and is readable at any angle. */}
             <div className="lg:absolute lg:bottom-4 lg:left-0 lg:w-[400px]">
               <HeroLedger />
+              <p className="mt-3 font-mono text-[11px] leading-relaxed break-words text-mut">
+                Seeded fixture, lib/data/seed.json. Every figure here is demo data, not a WEEX
+                account result.
+              </p>
             </div>
           </div>
         </div>
@@ -156,8 +163,8 @@ export default function Home() {
               </p>
             </div>
             <div className="rounded-2xl border border-acc/40 bg-acc/10 p-6">
-              <p className="font-mono text-2xl font-bold tracking-tight text-acc">uploadAiLog</p>
-              <p className="mt-2 text-sm text-mut">
+              <CopyChip text="/capi/v3/order/uploadAiLog" />
+              <p className="mt-3 text-sm text-mut">
                 The compliance write everyone treats as paperwork is Stele&apos;s memory: the same
                 post is the thesis ledger that sizes the next order.
               </p>
