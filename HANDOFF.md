@@ -44,6 +44,11 @@ You are picking up a warm scaffold. Read this file top to bottom before touching
 
 This repo is a Next.js console over the decision loop. It compiles and runs with zero environment variables.
 
+**Read the Phase 4 log at the bottom first.** The tree below is the Phase 2 picture and is now stale
+in several places: `/log` has become a redirect to `/evidence`, there are seven API routes rather
+than four, `lib/store/` gained `round.ts` and `fresh.ts`, and `lib/data.ts` and `lib/adapter.ts` are
+tombstones still waiting on a `git rm`.
+
 Layout after Phase 2. Three page routes, four API routes.
 
 ```
@@ -724,3 +729,215 @@ changes.
 After that, the two items that were true before this phase and are still true: verify
 `/capi/v3/position/history` field names against the live doc, and reconcile the `realizedPnlPct`
 denominator, because the valve reads that number and the valve is the product.
+
+---
+
+## Phase 4 log
+
+**Goal.** Give the judges the two surfaces that did not exist: `/evidence`, the AI participation
+receipt trail that the disqualification rule and the model token allocation are both decided on, and
+a Close at stop control that makes the second half of the loop happen on screen. Plus the responsive
+and metadata work that makes the live URL survive a phone and a link preview, and the three delivery
+documents.
+
+**Status.** All six slices landed. Nothing was cut. Unverified: every item that needs a command
+(`npm install`, `npm run build`, `npm test`, `npm run seed`, `npm run demo:reset`, the Vercel
+deploy). The Phase 4 agent had Write, Edit, Read, Glob and Grep only and could run none of them.
+
+**The second wow, one sentence:** the agent's memory is edited live, by a closed loss, and the valve
+reacts to it in the same second.
+
+### The brief was written against a stale picture of the repo, again
+
+Recorded so the divergences are deliberate rather than misses.
+
+| Brief asked for | What actually happened |
+| --- | --- |
+| create `DEMO.md` with steps 1..4 on `/`, then append 5 and 6 | `DEMO.md` has existed since Phase 1 and the console has been on `/console` since Phase 1. The file was rewritten to six steps: the existing five plus the new close-the-loop step. `/evidence` folded into step 5 rather than becoming a seventh, because step 5 already ended on the audit trail. |
+| create `components/SiteNav.tsx` | already existed from Phase 1. Rewritten with the below-`md` disclosure, `min-h-11` targets, and `/evidence` in place of `/log`. |
+| create `lib/attribution.ts` with `closePosition()` | `lib/attribution.ts` has existed since Phase 2 and is richer: `parseClientOid`, `buildClientOid`, `applyFillToThesis`, `attribute`. Writing a second `closePosition()` would have been a second definition of the same arithmetic. What was missing was the exit formula, which was inlined in `/api/attribute`; it is now `realizedFromExit()` in the same file, and the route calls it. |
+| do the close in the browser: mutate `theses` and `positions` in `useState`, prepend the log record | rejected. Phase 3 made the round server state precisely so a decision survives a refresh, and the console was rewritten to hold one `RoundView` and compute nothing. A client side close would have been the only thing on the screen that vanished on reload. `POST /api/attribute` already did all five of the brief's bullet points server side and had no UI; this phase gave it the button. |
+| create `app/icon.tsx` at 32 by 32 | **not done.** `app/icon.svg` has existed since Phase 1 and occupies the same Next.js metadata slot. Two `icon.*` files in one segment is a conflict, and the SVG is already a correct favicon. Adding the `.tsx` needs `git rm app/icon.svg` first, which the agent cannot do. |
+| a hero anchor to `#console` | the console is a route, not a section of `/`. An in-page `#console` anchor that scrolls to prose rather than a console would read as broken. The anchor is `#loop`, matching `id="loop"` on the four step section, and the hero links to `/console` and `/evidence` besides. |
+| create `lib/evidence.ts` importing `priorLogs, theses` from `@/lib/data` | `lib/data.ts` is a Phase 1 tombstone. `lib/evidence.ts` imports the seeded records from `@/lib/data/seed` as its default argument, and `/evidence` passes the **live round's** logs instead, so a decision run a moment ago is already on the page. |
+| the attribution record's `model` field taken from the last decision's model | rejected. That step is arithmetic, not a model call. Naming a model in a compliance trail for work a model did not do is false evidence, in a document whose whole purpose is being true. The field reads `stele-attribution`. |
+
+### Decisions
+
+- **`/log` became a redirect to `/evidence` rather than a second audit page.** Two routes rendering
+  the same records would have been an obvious duplicate to a judge and a second occupant of an
+  architectural seat. The redirect stays instead of the route being deleted because the Phase 1
+  deploy has been sharing `/log`, and an old link should land on the page rather than on a 404.
+- **The `realizedPnlPct` denominator, open since Phase 2, was closed.** This was going to be visible
+  on camera for the first time this phase, and it was going to look like a bug: recomputing against
+  `quotaUsedUsdt` re-scales a seeded ledger by roughly eight times, so a closed **loss** made the
+  percentage read **larger**. `deployedBase()` in `lib/attribution.ts` now recovers the original
+  denominator out of the row's own `realizedPnlUsdt` and `realizedPnlPct`, which is the only place
+  it survives, and falls back to `Math.max(1, quotaUsedUsdt)` for a thesis with no closed trade yet.
+  All four seeded positions now move their thesis percentage **down** when closed at a stop. The
+  brief specified the quota denominator; this is a deliberate departure and the reason is above.
+  Both existing tests in `tests/attribution.test.ts` were written with a fixture where the two
+  denominators agree (`realizedPnlUsdt: -1`, `realizedPnlPct: -1`, `quotaUsedUsdt: 100`), so they
+  still assert the same numbers. **Unverified: the agent cannot run `npm test`.**
+- **Three seed values changed so the second wow actually happens.** With the seed as it stood, no
+  open position could push its thesis across the halt line, so the badge flip the phase is named for
+  did not exist. `TH-VOL-CRUSH` moved from -6.8 USDT at -0.71% to **-15.1 USDT at -1.58%**, still
+  throttled and still above the halt line; a new fourth position **`POS-4475`** (cmt_btcusdt short,
+  entry 62480, stop 63729.60, 0.0036 contracts) loses **-4.50 USDT** at its stop, which takes that
+  thesis to about **-2.05%** and halts it; and a new fifth signal **`SIG-9118`** is bound to the same
+  thesis so the before and after are on one screen. Shape unchanged, every `scripts/seed.mjs`
+  invariant still holds, and `TH-SQZ-LONG` is still the only thesis at or below the halt line at
+  rest, which is what that script asserts.
+- **`pathFor()` is exported from `lib/weex.ts`.** `lib/evidence.ts` has to name the exact path
+  `uploadAiLog()` posts to. Rebuilding the string would let the page claim an endpoint the client is
+  not using. This is also what makes the depth test true: delete `lib/weex.ts` and `lib/evidence.ts`
+  stops compiling, so DEMO step 5 breaks.
+- **`SITE_URL` is a plain constant in `lib/config.ts`, not an env read.** A missing or misspelled
+  variable would silently ship a relative `og:image`, which every link preview drops, and the
+  failure would be invisible until someone pasted the URL somewhere. No new environment variable was
+  added this phase; the nine that exist are unchanged.
+- **The attribution explanation now names the valve consequence.** `POST /api/attribute` calls
+  `valveFor()` on the thesis before and after and writes both multipliers into the record. That is
+  what makes the record evidence rather than bookkeeping: it states the consequence before the next
+  signal arrives to prove it.
+
+### Failed attempts
+
+None. Three things were caught by reading rather than by a build:
+
+- The brief's client side close would have made the one thing a judge is asked to do the one thing
+  that does not survive a reload. Caught by re-reading the Phase 3 rule at the top of
+  `components/DecisionConsole.tsx`.
+- `app/icon.tsx` would have collided with the existing `app/icon.svg`. Not written.
+- The seed could not produce the badge flip the phase promised. Caught by working the arithmetic
+  through `valveFor()` by hand for all three existing positions before writing the DEMO step.
+
+### Files changed
+
+New: `lib/evidence.ts`, `app/evidence/page.tsx`, `app/evidence/loading.tsx`,
+`app/opengraph-image.tsx`, `DELIVERY.md`.
+
+Edited: `lib/weex.ts` (exported `pathFor`), `lib/attribution.ts` (`deployedBase`,
+`realizedFromExit`), `lib/config.ts` (`SITE_URL`), `lib/data/seed.json`, `lib/data/seed.ts`,
+`lib/store/seed.ts` (comment), `app/api/attribute/route.ts`, `app/layout.tsx`, `app/page.tsx`,
+`app/error.tsx`, `app/not-found.tsx`, `app/log/page.tsx` (now a redirect), `app/log/loading.tsx`,
+`components/SiteNav.tsx`, `components/DecisionConsole.tsx`, `components/DecisionLog.tsx`,
+`components/ThesisLedger.tsx`, `components/ConsoleStates.tsx`, `DEMO.md`, `README.md`, `CLAUDE.md`,
+`HANDOFF.md`, `.farm-commits.json`.
+
+Still tombstoned and still needing `git rm`: `lib/data.ts`, `lib/adapter.ts`. Optional third:
+`git rm app/log/loading.tsx` once the `/log` redirect is dropped.
+
+### Commands run
+
+None, the agent has no shell. The runner runs `npm install`, `npm run build` and `npm test`.
+
+### Env keys the runner must fill
+
+**No new keys this phase.** The nine that exist are unchanged and every one still has a line in
+`.env.example`: `ADAPTER_MODE`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `STELE_BASE_URL`,
+`WEEX_API_KEY`, `WEEX_API_SECRET`, `WEEX_API_PASSPHRASE`, `WEEX_API_HOST`, `WEEX_VENUE`,
+`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`.
+
+### What is still mocked
+
+- **`lib/data/seed.json`, read through `lib/store/round.ts`, is still the whole persistence layer.**
+  There is no database and no ORM. The round is one JSON blob in Upstash-compatible KV when the two
+  keys are set, and a module scope singleton otherwise.
+- **Attribution is in memory in the sense that matters: it is round state, not history.** A close
+  survives a page reload, and survives a cold serverless instance when the KV keys are set, but
+  `npm run demo:reset` or `POST /api/reset` puts every closed position back and the ledger back to
+  its seed values. There is no closed trade table and no record of a round that has ended.
+- **The real attribution poller still does not run.** `lib/store/weex-store.ts` reads
+  `/capi/v3/position/history` and the field names there are still unverified against the live doc.
+  Only `ADAPTER_MODE=real` plus WEEX credentials reaches it.
+- **The uploadAiLog queue is not persisted beyond the round blob and has no retry timer.**
+  `POST /api/queue` replays on demand; nothing calls it on a schedule.
+- **`placeOrder()`, `uploadAiLog()` and `lastPrice()` return shaped mocks with no credentials.**
+  Unchanged from Phase 2, and it is what makes every screen work with zero env vars.
+- **The prize rows in the README table are unverified.** The DoraHacks prize page returned HTTP 405
+  on every path tried, so the amounts and the "not published" slot counts come from the idea
+  record's target tracks, not from a fetched prize table. `DELIVERY.md` repeats the warning per row,
+  and the `AI model token ödülü` Google Form URL and closing date are both marked UNKNOWN rather
+  than invented.
+
+### Acceptance gate, checked by reading files
+
+- **Every new import resolves.** `@/lib/evidence` is `lib/evidence.ts:47` (`evidenceSummary`) and
+  `:38` (`EXPLANATION_LIMIT`), imported at `app/evidence/page.tsx:17`. `@/lib/attribution` is
+  `lib/attribution.ts` (`realizedFromExit`), imported at `app/api/attribute/route.ts:32`.
+  `@/components/SiteNav` is `components/SiteNav.tsx`, imported at `app/layout.tsx:2`.
+- **Seed shape unchanged and non empty.** `lib/data/seed.json` still has the same six top level
+  keys and the same field set per row. Three values changed and two rows were added, listed under
+  Decisions. Every `scripts/seed.mjs` invariant holds by inspection, including the one that matters:
+  exactly one thesis at or below -2.0% at rest.
+- **`DEMO.md` steps are 1..6 with no gaps**, each naming its route and its expected on screen result.
+- **`DELIVERY.md` has four headings byte identical to the README `Track` cells**: `AI Team`,
+  `AI model token ödülü`, `Early bird pool`, `New user pool`. The token section is marked
+  separate-submission with `URL: UNKNOWN` and the news link to find it from.
+- **README table** carries Track, Prize, Slots, Required tech, Code file, DEMO step, the four prize
+  strings byte identical to the idea record, and the sentence naming the 405.
+- **The required tech is load bearing.** `lib/weex.ts` is called at `app/api/decide/route.ts:45`
+  (`lastPrice`, `placeOrder`, `uploadAiLog`, `venueFromEnv`) and imported at `lib/evidence.ts:17`
+  (`hasCredentials`, `pathFor`, `venueFromEnv`, all three used in `evidenceSummary`). `lib/agent.ts`
+  is called at `app/api/decide/route.ts:28` (`judge`). `@anthropic-ai/sdk` is imported at
+  `lib/agent.ts:20` and called at `lib/agent.ts:94` (`client.messages`).
+- **Deleting `lib/weex.ts` breaks DEMO steps 2, 4 and 5.** Step 2 depends on `placeOrder`, step 4 on
+  `uploadAiLog`, step 5 on `pathFor` plus `hasCredentials` plus `venueFromEnv` through
+  `lib/evidence.ts`.
+- **One seat each.** One exchange (WEEX), one model provider (Anthropic), one persistence layer
+  (the round blob over `lib/data/seed.json`). `/log` became a redirect rather than a second audit
+  surface. No dependency was added: `package.json` is untouched.
+- **The second wow is DEMO step 6, on `/console`**, and it imports only modules already in the repo.
+  The close has a guarded path: the button is `disabled={pending !== null}`, and with no positions
+  left the table is replaced by a sentence saying so and naming the next click.
+- **`components/SiteNav.tsx` is rendered by `app/layout.tsx:38`**, has `hidden md:flex` on the row
+  and `md:hidden` on both the disclosure button and the stacked panel, and links `/`, `/console` and
+  `/evidence`.
+- **Every `min-w-[` sits inside an `overflow-x-auto` parent.** Two hits:
+  `components/DecisionConsole.tsx` (`min-w-[48rem]`, wrapper immediately above it) and
+  `app/page.tsx` (`min-w-[40rem]`, same). Every other bracket width is a `max-w-[...]`. `body` also
+  carries `overflow-x-hidden` as a backstop.
+- **Touch targets.** `min-h-11` on Run decision loop, Reset round, Close at stop, the nav links, the
+  nav disclosure, the thesis ledger row buttons, the error boundary's Try again, the not-found
+  links, the evidence page's two links, and both buttons in `components/ConsoleStates.tsx`.
+- **Long ids carry `title`.** Thesis name and id in `ThesisLedger`, thesis id in the signal queue and
+  in both log lists, position id and thesis id in the positions table, and every `Field` value keeps
+  `break-words`.
+- **Home route hrefs resolve.** `/console` (`app/console/page.tsx`), `/evidence`
+  (`app/evidence/page.tsx`), `#loop` (`id="loop"` on the four step section). No external link.
+- **Root metadata** at `app/layout.tsx:9` exports `metadataBase`, `title` with the
+  `"%s · Stele"` template, a 122 character `description`, `openGraph` with `images: ["/opengraph-image"]`
+  served by `app/opengraph-image.tsx`, and `twitter.card: "summary_large_image"`.
+- **Hex literals** appear only in `app/globals.css`, `app/icon.svg` and `app/opengraph-image.tsx`.
+- **No `console.log` under `app/` or `components/`.** The only console calls in the repo are
+  `console.info` in `lib/observability.ts` (the deliberate trace line) and the two `scripts/*.mjs`
+  CLI files.
+- **`export const runtime = "nodejs"`** is still on `app/api/decide/route.ts` and
+  `app/api/attribute/route.ts`. No `useSearchParams` anywhere. No runtime filesystem write: `node:fs`
+  appears once, in `scripts/seed.mjs`.
+
+Honest gaps:
+
+- **Every command is unverified.** `npm install`, `npm run build`, `npm test`, `npm run seed`,
+  `npm run demo:reset` and the Vercel deploy are the runner's job. Nothing in this log claims a
+  command was run, and no number on screen was watched.
+- **`app/icon.tsx` was not created.** See the divergence table. The favicon is `app/icon.svg`.
+- **The `#console` anchor named in the brief does not exist.** It is `#loop`, for the reason above.
+- **The `/evidence` counts in DEMO step 5 are arithmetic on the seed**, not something observed:
+  four seeded records, three with a non-null `weexResponse`, one queued.
+- **The og:image has never been rendered.** Satori is strict about `display: flex` on any element
+  with more than one child; every container in `app/opengraph-image.tsx` sets it explicitly, but that
+  is a reading, not a render.
+
+### Next best step for Phase 5
+
+Deploy, then walk DEMO.md on the live URL in a private window, all six steps, watching for two
+things specifically: that `/opengraph-image` returns a PNG (view source on `/`, the `og:image` should
+be an absolute `https://` URL that loads), and that step 6's badge really turns red. Step 6 is the
+only step in the file whose numbers were computed by hand rather than copied from a screen.
+
+After that, in order: set `KV_REST_API_URL` and `KV_REST_API_TOKEN` and confirm no
+`store: falling back to memory` line in the Vercel logs (still open from Phase 3), verify
+`/capi/v3/position/history` field names against the live doc, and submit the UID plus static IP to
+the WEEX allowlist if that has still not been done. `DELIVERY.md` is the checklist for the last one.

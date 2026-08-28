@@ -1,7 +1,10 @@
 # Stele: working notes for Claude
 
-Short and permanent. Read `HANDOFF.md` for the competition facts and `DEMO.md` for what the screen
-has to do.
+Short and permanent. Read `HANDOFF.md` for the competition facts, `DEMO.md` for what the screen has
+to do, and `DELIVERY.md` for what a human still has to file by hand.
+
+Three page routes: `/` the overview, `/console` the demo start route, `/evidence` the AI
+participation receipt trail. `/log` is a redirect to `/evidence` and holds no content.
 
 ## Commands
 
@@ -17,8 +20,9 @@ npm run seed    # validates lib/data/seed.json, writes public/seed-manifest.json
 
 - **Tailwind CSS v4.** No `tailwind.config.js`, no `@tailwind base` directives. Colors are defined in
   the `@theme` block in `app/globals.css` and nowhere else. A new color goes there first, never
-  inline, never as a hex literal in a component. The one exception is `app/icon.svg`, which is an
-  asset and not a component.
+  inline, never as a hex literal in a component. Two exceptions, both assets rather than components:
+  `app/icon.svg`, and `app/opengraph-image.tsx`, which renders through Satori and has no stylesheet
+  to read a token from. Both copy their values from the `@theme` block by hand.
 - **`"use client"`** on the first line of anything that uses `useState`, `useEffect`, `usePathname`
   or an event handler.
 - **Next 15 route `params` and `searchParams` are Promises.** Await them.

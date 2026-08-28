@@ -2,7 +2,7 @@
 
 A WEEX perpetual futures agent that ties every order to a named thesis, keeps a realized profit and loss ledger for each one, and cuts the capital of any thesis that is losing money.
 
-The entry screen is **`/console`**: the thesis ledger, the market strip, the open positions, the signal queue and the uploadAiLog stream on one page. `/log` holds the full audit trail. The landing page at `/` explains the mechanism. All three run on seeded data with no environment variables set, so the loop is inspectable before the API allowlist clears. `DEMO.md` walks the 90 second sequence step by step.
+The entry screen is **`/console`**: the thesis ledger, the market strip, the open positions, the signal queue and the uploadAiLog stream on one page. `/evidence` holds the full AI participation receipt trail with the endpoint, the venue and the accepted against queued counts at the top. The landing page at `/` explains the mechanism. All three run on seeded data with no environment variables set, so the loop is inspectable before the API allowlist clears. `DEMO.md` walks the 90 second sequence step by step, and `DELIVERY.md` lists what a human still has to file by hand.
 
 > Live demo: https://stele.vercel.app
 >
@@ -21,10 +21,27 @@ Stele refuses to let an order exist without a reason attached to it.
 1. Before the round starts, six theses are written down: each with a name and an entry condition. Example: *funding under -0.02% for three settlements while open interest adds more than 4% in an hour, take the squeeze long.*
 2. When a signal arrives, it is matched to one of those written theses. A signal matching none of them never becomes an order.
 3. The order goes out over WEEX OpenAPI v3. The same decision is posted to `/capi/v3/order/uploadAiLog` with `stage`, `model`, `input`, `output` and a 1000 character `explanation`. The returned `orderId` pairs the fill with the thesis.
-4. When the position closes, its realized PnL is written back to that thesis. `POST /api/attribute` does it for one named position, and the attribution job in `lib/store/weex-store.ts` does it in bulk from WEEX closed fills. Both end in the same `applyFillToThesis()` call, so the two paths cannot drift.
+4. When the position closes, its realized PnL is written back to that thesis. The **Close at stop** control on each open position row does it for one position through `POST /api/attribute`, and the attribution job in `lib/store/weex-store.ts` does it in bulk from WEEX closed fills. Both end in the same `applyFillToThesis()` call in `lib/attribution.ts`, so the two paths cannot drift.
 5. The size of the next order comes from that thesis's own ledger, not from the agent's overall performance. A thesis at or past the halt line drops to zero capital, and the agent refuses its own order. The refusal is posted to the same log endpoint.
 
 The wow moment is step 5 running live: the agent proposes a long, the `TH-SQZ-LONG` ledger reads -2.14% over 7 closed trades, the valve multiplier goes to 0.00x, a red **REFUSED** row appears, and WEEX returns a receipt for the bot saying no.
+
+The second one is step 4 running on screen. Press **Close at stop** on the `TH-VOL-CRUSH` position in the console: the realized -4.50 USDT lands on that thesis, its ledger crosses the -2.0% halt line, its badge turns red without a page reload, and the signal waiting behind it goes from half size to refused. The agent's memory is edited live by a closed loss, and the valve reacts to it in the same second.
+
+## Tracks this build is aimed at
+
+| Track | Prize | Slots | Required tech | Code file | DEMO step |
+| --- | --- | --- | --- | --- | --- |
+| `AI Team` | `200,000 USDT ana ödül havuzunun paylaşımı` | not published | WEEX OpenAPI v3 signed client, exchange side TP and SL | `lib/weex.ts`, `lib/valve.ts`, `app/api/decide/route.ts` | 2, 4 |
+| `AI model token ödülü` | `100 milyon AI model token` | not published | `POST /capi/v3/order/uploadAiLog`, a real model call | `lib/weex.ts` (`uploadAiLog`), `lib/agent.ts`, `lib/evidence.ts` | 3, 5 |
+| `Early bird pool` | `52,000 USDT` | not published | registration timing, WEEX API keys and allowlist | none, calendar item | none |
+| `New user pool` | `20,000 USDT` | not published | new WEEX UID through KYC | none, calendar item | none |
+
+The prize and slot cells above are **unverified**: the DoraHacks prize page returned HTTP 405 on every path we tried, so these four rows come from the idea record's target tracks rather than from a fetched prize table. Treat the amounts as claims to confirm before submitting, not as published figures.
+
+**The depth test, one line per code row.** Remove `lib/weex.ts` and DEMO steps 2, 4 and 5 all break: step 2 loses `placeOrder()`, step 4 loses `uploadAiLog()` (the refusal has nowhere to be posted), and step 5 loses `pathFor()`, `hasCredentials()` and `venueFromEnv()`, which `lib/evidence.ts` imports, so `/evidence` stops compiling. Remove `lib/agent.ts` and the explanation field in step 3 has no author: `app/api/decide/route.ts` calls `judge()` for both the thesis match and the 1000 character explanation, and there is nothing else in the repo that writes one.
+
+`DELIVERY.md` carries the entry mode, the action and the deadline for each of the four rows, including the one that is a separate Google Form rather than anything this repo can do.
 
 ## How it uses the required tech
 
@@ -67,7 +84,7 @@ npm run demo:reset   # puts the running app back to the opening frame of DEMO.md
 
 The round is server state. Every decision, the quota it spends, the position it opens and the
 uploadAiLog record it writes go into one JSON snapshot that `lib/store/round.ts` owns, which is why
-the refusal in step 4 of DEMO.md is still on screen after a hard refresh.
+the refusal in step 4 of DEMO.md is still on screen after the hard refresh in step 5.
 
 Two environment variables, **both optional**:
 
@@ -110,8 +127,10 @@ opens on the first take's leftovers.
 
 - Round rollover: carry the thesis ledger across the five weekly rounds and nothing else, then chart per-thesis equity curves so drift is visible before it becomes drawdown.
 - A signal source per thesis, reading funding and open interest from WEEX market endpoints on a timer, instead of the seeded queue.
-- Refresh without a click: the ledger moves when a position closes, and today that only shows on the next navigation or the next decision.
+- Refresh without a click. Closing a position updates the ledger in place today, but a fill that closes at the exchange while nobody is looking only shows on the next navigation. That wants polling or SSE against `GET /api/round`.
+- The real attribution poller. `lib/store/weex-store.ts` reads closed fills from `/capi/v3/position/history`, and those field names are still unverified against the live WEEX doc.
 - A compare and set on the round write. One blob and one demo operator means a lost update is not reachable today, but two agent processes writing the same round would need it.
+- One denominator for `realizedPnlPct`. `lib/attribution.ts` recovers the deployed capital base out of the thesis row's own two numbers, which keeps a closed loss moving the percentage in the right direction, but a `deployedUsdt` field on `Thesis` would be the honest fix.
 
 ## AI use
 
