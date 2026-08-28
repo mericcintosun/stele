@@ -1,8 +1,8 @@
 // The seed store. Server only.
 //
 // This is the insurance for the recorded demo and the permanent fallback: with
-// zero environment variables the console still renders six theses, three
-// positions, three market rows, four signals and four prior log records.
+// zero environment variables the console still renders six theses, four
+// positions, three market rows, five signals and four prior log records.
 //
 // Since Phase 3 it holds none of that state itself. Every method reads the
 // round snapshot through lib/store/round.ts and every mutation is one

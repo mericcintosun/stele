@@ -17,7 +17,7 @@
 // This module imports types only, so it loads under `node --test` with no
 // bundler and no environment.
 
-import type { ClosedFill, Thesis } from "./types";
+import type { ClosedFill, Position, Thesis } from "./types";
 
 /**
  * Mirrors CLIENT_OID_PREFIX in lib/config.ts. It is repeated here rather than
@@ -60,6 +60,50 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /**
+ * What realizedPnlPct is a percent OF.
+ *
+ * Phases 2 and 3 both left this open, and it matters more than it looks. The
+ * ledger a thesis carries measures its realized PnL against the capital it has
+ * deployed across every round, which is a cumulative notional figure. The per
+ * round quota (quotaUsedUsdt) is a different and much smaller number: for
+ * TH-SQZ-LONG the seed reads -21.4 USDT at -2.14%, which is -21.4 against about
+ * 1000 USDT of deployed notional, not against 148.2 USDT of round quota.
+ *
+ * Recomputing against the quota therefore re-scaled the ledger by roughly eight
+ * times the moment one trade closed, and a closed LOSS made the percentage read
+ * larger rather than smaller. On the console that looks like a bug, because it
+ * is one.
+ *
+ * So the base is read back out of the row's own two numbers, which is the only
+ * place the original denominator survives, and quotaUsedUsdt is kept as the
+ * fallback for a thesis that has not closed a trade yet. Both inputs are stored
+ * rounded to two decimals, so the recovered base drifts by a fraction of a
+ * percent across a handful of closes. That is well inside the precision the
+ * valve reads it at.
+ */
+function deployedBase(t: Thesis): number {
+  if (t.realizedPnlUsdt !== 0 && t.realizedPnlPct !== 0) {
+    const implied = Math.abs(t.realizedPnlUsdt) / (Math.abs(t.realizedPnlPct) / 100);
+    if (Number.isFinite(implied) && implied >= 1) return implied;
+  }
+  return Math.max(1, t.quotaUsedUsdt);
+}
+
+/**
+ * What one open position realizes if it is closed at a given price.
+ *
+ * A long pays the rise and a short pays the fall, over contracts rather than
+ * notional, because the position carries the size it was actually filled at.
+ * This is the arithmetic the real attribution poller will run once it reads
+ * closed fills back from WEEX; today POST /api/attribute runs it against a
+ * position the console hands it.
+ */
+export function realizedFromExit(p: Position, exitPrice: number): number {
+  const direction = p.side === "long" ? 1 : -1;
+  return round2((exitPrice - p.entryPrice) * p.sizeContracts * direction);
+}
+
+/**
  * One closed trade landing on one thesis.
  *
  * realizedPnlPct is measured against deployed capital, floored at 1 USDT so a
@@ -73,7 +117,7 @@ export function applyFillToThesis(
   closedAt: string,
   peakUsdt: number = Math.max(t.realizedPnlUsdt, 0),
 ): Thesis {
-  const deployed = Math.max(1, t.quotaUsedUsdt);
+  const deployed = deployedBase(t);
   const realizedPnlUsdt = round2(t.realizedPnlUsdt + realizedUsdt);
   const peak = Math.max(peakUsdt, realizedPnlUsdt);
   const drawdownPct = round1(((peak - realizedPnlUsdt) / deployed) * 100);

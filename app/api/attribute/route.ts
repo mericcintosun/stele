@@ -15,17 +15,25 @@
 // credentials are in place. Both end in the same call, applyFillToThesis(), so
 // the two paths cannot drift.
 //
-// The 90 second script does not close a position, so nothing in DEMO.md depends
-// on this route. It is here because the ledger is the product and a ledger that
-// only ever goes out is half a ledger.
+// Step 6 of DEMO.md is this route with a button on it. A judge closes the open
+// TH-VOL-CRUSH short at its stop, the loss lands on that thesis, the ledger
+// crosses the -2.0% halt line, the badge flips from throttled to halted without
+// a page reload, and SIG-9118 (the next signal bound to the same thesis) is
+// refused where a moment earlier it would have been merely halved.
+//
+// The model field on the record it writes is "stele-attribution" and not a
+// model name on purpose. This step is arithmetic, not a model call, and naming
+// a model in a compliance trail for work a model did not do would be false
+// evidence.
 
 import { NextResponse } from "next/server";
-import { applyFillToThesis } from "@/lib/attribution";
+import { applyFillToThesis, realizedFromExit } from "@/lib/attribution";
 import { errorResponse } from "@/lib/errors";
 import { trace } from "@/lib/observability";
 import { readRound, viewOf, writeRound } from "@/lib/store";
 import type { AiLogRecord, ApiResponse, RoundState, RoundView, Thesis } from "@/lib/types";
 import { parseAttributeBody, readJson } from "@/lib/validate";
+import { valveFor } from "@/lib/valve";
 import { uploadAiLog, venueFromEnv } from "@/lib/weex";
 
 export const runtime = "nodejs";
@@ -77,11 +85,10 @@ export async function POST(req: Request) {
     );
   }
 
-  // Long pays the rise, short pays the fall. Contracts, not notional, because
-  // the position carries the size it was actually filled at.
-  const direction = position.side === "long" ? 1 : -1;
-  const realizedUsdt =
-    Math.round((exitPrice - position.entryPrice) * position.sizeContracts * direction * 100) / 100;
+  // The exit arithmetic lives in lib/attribution.ts next to the fold, so the
+  // manual close and the WEEX fills poller cannot end up computing the same
+  // closed trade two different ways.
+  const realizedUsdt = realizedFromExit(position, exitPrice);
 
   const closedAt = new Date().toISOString();
   const next = applyFillToThesis(current, realizedUsdt, closedAt);
@@ -94,11 +101,16 @@ export async function POST(req: Request) {
     trades: next.trades,
     wins: next.wins,
   });
+  // What the valve will do with the number that was just written. This is the
+  // line that makes the record evidence rather than bookkeeping: it states the
+  // consequence before the next signal arrives to prove it.
+  const after = valveFor(next);
   const explanation = [
     `Closed fill written back to ${next.id} (${next.name}).`,
     `Closed trade ${next.trades} on this thesis, ${next.wins} wins.`,
     `Realized ${realizedUsdt.toFixed(2)} USDT, ledger moves from ${current.realizedPnlPct.toFixed(2)}% to ${next.realizedPnlPct.toFixed(2)}% of deployed capital.`,
-    `Max drawdown now ${next.maxDrawdownPct.toFixed(1)}%. The next signal matching this thesis is sized from this number.`,
+    `Max drawdown now ${next.maxDrawdownPct.toFixed(1)}%.`,
+    `Valve goes from ${valveFor(current).multiplier.toFixed(2)}x to ${after.multiplier.toFixed(2)}x, state ${after.state}. The next signal matching this thesis is sized from this number.`,
   ]
     .join(" ")
     .slice(0, 1000);

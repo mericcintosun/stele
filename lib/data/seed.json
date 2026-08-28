@@ -2,7 +2,7 @@
   "account": {
     "uid": "WX-88214077",
     "equityUsdt": 1000,
-    "availableUsdt": 386.4,
+    "availableUsdt": 341.41,
     "round": 2,
     "totalRounds": 5,
     "side": "AI Team",
@@ -72,8 +72,8 @@
       "symbols": ["cmt_btcusdt"],
       "trades": 5,
       "wins": 2,
-      "realizedPnlUsdt": -6.8,
-      "realizedPnlPct": -0.71,
+      "realizedPnlUsdt": -15.1,
+      "realizedPnlPct": -1.58,
       "maxDrawdownPct": 3.3,
       "quotaUsdt": 150,
       "quotaUsedUsdt": 44,
@@ -139,6 +139,21 @@
       "stopLoss": 60603.69,
       "unrealizedPnlUsdt": 1.12,
       "openedAt": "2026-08-28T05:48:00Z"
+    },
+    {
+      "id": "POS-4475",
+      "symbol": "cmt_btcusdt",
+      "side": "short",
+      "thesisId": "TH-VOL-CRUSH",
+      "entryPrice": 62480,
+      "markPrice": 62215,
+      "sizeContracts": 0.0036,
+      "notionalUsdt": 224.93,
+      "leverage": 5,
+      "takeProfit": 59980.8,
+      "stopLoss": 63729.6,
+      "unrealizedPnlUsdt": 0.95,
+      "openedAt": "2026-08-28T06:20:00Z"
     }
   ],
   "markets": [
@@ -203,6 +218,15 @@
       "oiChange1hPct": 6.4,
       "suggestedSide": "long",
       "thesisId": "TH-OI-BREAK"
+    },
+    {
+      "id": "SIG-9118",
+      "symbol": "cmt_btcusdt",
+      "headline": "BTC realized 0.79% of an implied 0.84% move within 26 minutes of the PPI print. The expansion is already spent.",
+      "fundingRatePct": 0.0092,
+      "oiChange1hPct": 2.6,
+      "suggestedSide": "short",
+      "thesisId": "TH-VOL-CRUSH"
     }
   ],
   "logs": [
@@ -239,7 +263,7 @@
       "thesisId": "TH-VOL-CRUSH",
       "input": "CPI print at 12:30 UTC, realized move 0.81% against an implied 0.86% within 22 minutes.",
       "output": "{\"thesis\":\"TH-VOL-CRUSH\",\"multiplier\":0.5,\"reason\":\"ledger_negative\"}",
-      "explanation": "TH-VOL-CRUSH sits at -0.71% over 5 closed trades. That is under the throttle line but above the halt line, so the valve halves the size rather than closing the thesis. Order goes out at 60 USDT notional instead of 120.",
+      "explanation": "TH-VOL-CRUSH sits at -1.58% over 5 closed trades. That is under the throttle line but above the -2.0% halt line, so the valve halves the size rather than closing the thesis. Order goes out at 60 USDT notional instead of 120. One more closed loss on this thesis takes it past the halt line.",
       "orderId": "1103012004",
       "postedAt": "2026-08-27T13:20:44Z",
       "weexResponse": { "code": "00000", "msg": "success", "requestTime": 1787159644902 },

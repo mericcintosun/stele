@@ -2,9 +2,15 @@
 //
 // Everything here is a plausible snapshot of an agent that has already traded
 // one weekly round on WEEX perpetuals: six named theses, their closed-trade
-// ledgers, three open positions carrying exchange-side TP/SL, the market rows
-// the agent watches, four pending signals, and the uploadAiLog records the
+// ledgers, four open positions carrying exchange-side TP/SL, the market rows
+// the agent watches, five pending signals, and the uploadAiLog records the
 // agent has already written to the exchange.
+//
+// Two rows are shaped for DEMO.md step 6 and should not be edited casually.
+// TH-VOL-CRUSH sits at -1.58%, one closed loss short of the -2.0% halt line,
+// and POS-4475 is the position whose stop closes that gap. SIG-9118 is bound to
+// the same thesis, so the same signal is halved before the close and refused
+// after it.
 //
 // The values live in seed.json so scripts/seed.mjs can validate them without a
 // TypeScript step. This file only puts the types back on. In Phase 2 the real

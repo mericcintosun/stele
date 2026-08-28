@@ -24,9 +24,11 @@ function clone<T extends object>(rows: readonly T[]): T[] {
 
 /**
  * A round nobody has touched yet: six theses with the ledgers they earned in
- * round one, three open positions, four signals waiting and the four prior
- * uploadAiLog records. TH-SQZ-LONG is already under the halt line, which is
- * what makes step 4 of DEMO.md work with no setup.
+ * round one, four open positions, five signals waiting and the four prior
+ * uploadAiLog records. Two rows in there are load bearing. TH-SQZ-LONG is
+ * already under the halt line, which is what makes step 4 of DEMO.md work with
+ * no setup. TH-VOL-CRUSH sits one closed loss short of it, and POS-4475 is the
+ * position that closes the gap, which is step 6.
  */
 export function freshRound(): RoundState {
   return {

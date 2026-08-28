@@ -22,7 +22,7 @@ import DecisionLog from "@/components/DecisionLog";
 import ThesisLedger from "@/components/ThesisLedger";
 import type { SteleError, SteleErrorCode } from "@/lib/errors";
 import { pct, stamp, usdt } from "@/lib/format";
-import type { ApiResponse, Decision, RoundView, Signal } from "@/lib/types";
+import type { ApiResponse, Decision, Position, RoundView, Signal, Thesis } from "@/lib/types";
 import { valveFor } from "@/lib/valve";
 
 interface Props {
@@ -33,6 +33,14 @@ interface Props {
 interface RoundPayload {
   round: RoundView;
   wiring: { modelPath: Decision["source"] | null; persistence: "kv" | "memory" };
+}
+
+/** What POST /api/attribute answers with when a position is closed. */
+interface AttributePayload {
+  thesis: Thesis | null;
+  realizedUsdt: number;
+  round: RoundView;
+  replayed: boolean;
 }
 
 /**
@@ -143,6 +151,50 @@ export default function DecisionConsole({ initial }: Props) {
     }
   }
 
+  /**
+   * Close one open position at its resting stop loss and hand the realized loss
+   * back to the thesis that opened it.
+   *
+   * This is the other half of the loop. Running a signal spends a thesis's
+   * quota; this is where the money comes back and changes what the valve will
+   * allow next. The arithmetic runs on the server in POST /api/attribute, for
+   * the same reason every other write does: the round is server state, so the
+   * ledger has to still read the new number after a refresh. Nothing here
+   * recomputes a percentage, and nothing here decides a badge. The thesis rows
+   * come back from the store and ThesisLedger derives the badge from valveFor().
+   */
+  async function closeAtStop(p: Position) {
+    setPending(p.id);
+    setError(null);
+    setSelectedThesis(p.thesisId);
+
+    try {
+      const res = await fetch("/api/attribute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Same guard as a decision: a double click must not pay the same closed
+        // trade onto the ledger twice.
+        body: JSON.stringify({
+          positionId: p.id,
+          exitPrice: p.stopLoss,
+          idempotencyKey: `close-${p.id}-${round.updatedAt}`,
+        }),
+      });
+      const payload = (await res.json()) as ApiResponse<AttributePayload>;
+
+      if (!payload.ok) {
+        applyFailure(payload);
+        return;
+      }
+
+      setRound(payload.data.round);
+    } catch {
+      setError("The position could not be closed. Nothing was written to the ledger.");
+    } finally {
+      setPending(null);
+    }
+  }
+
   /** Back to the opening frame, server side, so the take can be retaken. */
   async function reset() {
     setPending("reset");
@@ -211,7 +263,7 @@ export default function DecisionConsole({ initial }: Props) {
           type="button"
           onClick={reset}
           disabled={pending !== null}
-          className="rounded border border-line px-2 py-1 text-[11px] text-mut transition-colors hover:border-acc/50 hover:text-acc disabled:opacity-40"
+          className="inline-flex min-h-11 items-center rounded border border-line px-3 text-[11px] text-mut transition-colors hover:border-acc/50 hover:text-acc disabled:opacity-40"
         >
           Reset round
         </button>
@@ -260,7 +312,9 @@ export default function DecisionConsole({ initial }: Props) {
                         <span>{s.id}</span>
                         <span>{s.symbol}</span>
                         <span className="uppercase">{s.suggestedSide}</span>
-                        <span className="ml-auto">{s.thesisId}</span>
+                        <span className="ml-auto" title={s.thesisId}>
+                          {s.thesisId}
+                        </span>
                       </div>
                       <p className="mt-1.5 text-sm leading-relaxed">{s.headline}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -268,7 +322,7 @@ export default function DecisionConsole({ initial }: Props) {
                           type="button"
                           onClick={() => evaluate(s)}
                           disabled={pending !== null}
-                          className="rounded-lg bg-acc px-3 py-1.5 text-xs font-semibold text-bg transition-opacity hover:opacity-90 disabled:opacity-40"
+                          className="inline-flex min-h-11 items-center rounded-lg bg-acc px-4 text-xs font-semibold text-bg transition-opacity hover:opacity-90 disabled:opacity-40"
                         >
                           {pending === s.id ? "Running the loop…" : "Run decision loop"}
                         </button>
@@ -362,44 +416,72 @@ export default function DecisionConsole({ initial }: Props) {
           <section className="rounded-xl border border-line bg-panel">
             <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-3">
               <h2 className="text-sm font-semibold tracking-tight">Open positions</h2>
-              <span className="text-[11px] text-mut">every entry carries exchange-side TP/SL</span>
+              <span className="text-[11px] text-mut">
+                every entry carries exchange-side TP/SL. Closing one writes its result back to its
+                thesis.
+              </span>
             </header>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[40rem] text-left font-mono text-[11px]">
-                <thead className="text-mut">
-                  <tr className="border-b border-line">
-                    <th className="px-4 py-2 font-normal">position</th>
-                    <th className="px-4 py-2 font-normal">thesis</th>
-                    <th className="px-4 py-2 font-normal">entry</th>
-                    <th className="px-4 py-2 font-normal">TP</th>
-                    <th className="px-4 py-2 font-normal">SL</th>
-                    <th className="px-4 py-2 font-normal">uPnL</th>
-                    <th className="px-4 py-2 font-normal">opened</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {round.positions.map((p) => (
-                    <tr key={p.id}>
-                      <td className="px-4 py-2">
-                        <span className="text-ink">{p.symbol}</span>{" "}
-                        <span className={p.side === "long" ? "text-ok" : "text-bad"}>{p.side}</span>{" "}
-                        <span className="text-mut">{p.leverage}x</span>
-                      </td>
-                      <td className="px-4 py-2 text-mut">{p.thesisId}</td>
-                      <td className="px-4 py-2 text-ink">{p.entryPrice.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-ok">{p.takeProfit.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-bad">{p.stopLoss.toFixed(2)}</td>
-                      <td
-                        className={`px-4 py-2 ${p.unrealizedPnlUsdt < 0 ? "text-bad" : "text-ok"}`}
-                      >
-                        {usdt(p.unrealizedPnlUsdt)}
-                      </td>
-                      <td className="px-4 py-2 text-mut">{stamp(p.openedAt)}</td>
+
+            {round.positions.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-mut">
+                Nothing open. Every position this round has been closed and its result written back
+                to the thesis that opened it. Run a signal above to open another one, or press Reset
+                round to start the sequence again.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[48rem] text-left font-mono text-[11px]">
+                  <thead className="text-mut">
+                    <tr className="border-b border-line">
+                      <th className="px-4 py-2 font-normal">position</th>
+                      <th className="px-4 py-2 font-normal">thesis</th>
+                      <th className="px-4 py-2 font-normal">entry</th>
+                      <th className="px-4 py-2 font-normal">TP</th>
+                      <th className="px-4 py-2 font-normal">SL</th>
+                      <th className="px-4 py-2 font-normal">uPnL</th>
+                      <th className="px-4 py-2 font-normal">opened</th>
+                      <th className="px-4 py-2 font-normal">attribution</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {round.positions.map((p) => (
+                      <tr key={p.id}>
+                        <td className="px-4 py-2" title={p.id}>
+                          <span className="text-ink">{p.symbol}</span>{" "}
+                          <span className={p.side === "long" ? "text-ok" : "text-bad"}>
+                            {p.side}
+                          </span>{" "}
+                          <span className="text-mut">{p.leverage}x</span>
+                        </td>
+                        <td className="px-4 py-2 text-mut" title={p.thesisId}>
+                          {p.thesisId}
+                        </td>
+                        <td className="px-4 py-2 text-ink">{p.entryPrice.toFixed(2)}</td>
+                        <td className="px-4 py-2 text-ok">{p.takeProfit.toFixed(2)}</td>
+                        <td className="px-4 py-2 text-bad">{p.stopLoss.toFixed(2)}</td>
+                        <td
+                          className={`px-4 py-2 ${p.unrealizedPnlUsdt < 0 ? "text-bad" : "text-ok"}`}
+                        >
+                          {usdt(p.unrealizedPnlUsdt)}
+                        </td>
+                        <td className="px-4 py-2 text-mut">{stamp(p.openedAt)}</td>
+                        <td className="px-4 py-2">
+                          <button
+                            type="button"
+                            onClick={() => closeAtStop(p)}
+                            disabled={pending !== null}
+                            title={`Close ${p.id} at ${p.stopLoss.toFixed(2)} and write the result back to ${p.thesisId}`}
+                            className="inline-flex min-h-11 items-center rounded-lg border border-bad/40 px-3 text-[11px] font-semibold text-bad transition-colors hover:bg-bad/10 disabled:opacity-40"
+                          >
+                            {pending === p.id ? "Closing…" : "Close at stop"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         </div>
 
