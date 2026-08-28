@@ -9,14 +9,15 @@ The stakes are real money over five consecutive weekly live rounds, and the rank
 performance, risk control and strategy stability together. WEEX put their own Season 1 headline at
 **80% win rate to 40% drawdown**: good hit rates, and still deep in the hole at the end of the round.
 
-> Live console: `<ADD_LIVE_URL>`
+> Live console: https://stele-gules.vercel.app/console
 >
 > Video: `<ADD_VIDEO_URL>`
 >
 > Repository: https://github.com/mericcintosun/stele
 
-**Both of the first two are placeholder tokens, not URLs.** Until they are replaced, a judge should
-take path B below, which runs the entire demo from a clone with nothing configured.
+**The console link is live, open it first.** It needs no wallet, no account and no API key. Only the
+video is still a placeholder token, because no take has been uploaded yet. Path B below runs the same
+demo from a clone if you would rather read the code while it runs.
 
 **If you read nothing else, go to [DEMO.md](DEMO.md) step 4.** That is the agent refusing an order it
 wanted to place, and WEEX issuing a receipt for the refusal.
@@ -26,9 +27,10 @@ wanted to place, and WEEX issuing a receipt for the refusal.
 **No wallet, no account and no API key is needed on either path.** Every panel is populated on
 seeded data with zero environment variables set.
 
-**Path A, the deployed console.** Open `<ADD_LIVE_URL>/console`.
+**Path A, the deployed console. Start here.** Open https://stele-gules.vercel.app/console.
 
-**Path B, from a clone. Take this one while the live URL above is still a placeholder.**
+**Path B, from a clone. The offline fallback**, for reading the code as it runs or for a moment when
+the deploy is down.
 
 ```bash
 git clone https://github.com/mericcintosun/stele
@@ -219,7 +221,7 @@ build step and no test framework in `devDependencies`.
 
 | Artifact | Where | Notes |
 | --- | --- | --- |
-| Live console | `<ADD_LIVE_URL>` | Vercel. Start at `/console`, DEMO.md step 4 is the wow step. Placeholder token until the deploy is confirmed: use path B of "Try it in 60 seconds". |
+| Live console | https://stele-gules.vercel.app | Vercel. Start at `/console`, DEMO.md step 4 is the wow step. |
 | Demo video | `<ADD_VIDEO_URL>` | 90 second single take. Shot list in [docs/VIDEO.md](docs/VIDEO.md). Placeholder token until the take is uploaded. |
 | Repository | https://github.com/mericcintosun/stele | Public. Runs every DEMO.md step from a clone with zero environment variables. |
 | WEEX venue | `/capi/v3/sim` demo futures | Flipped by `WEEX_VENUE`. `pathFor()` in `lib/weex.ts` is the whole switch. |

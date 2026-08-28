@@ -76,7 +76,7 @@ export const BASE_URL = process.env.STELE_BASE_URL ?? "http://localhost:3000";
  * env read: a wrong or missing variable here would silently ship a relative
  * og:image, which every social and link preview drops.
  */
-export const SITE_URL = "https://stele.vercel.app";
+export const SITE_URL = "https://stele-gules.vercel.app";
 
 /**
  * The two signals DEMO.md runs, by id. Step 2 sends an order, step 4 is the

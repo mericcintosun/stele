@@ -9,7 +9,7 @@
 // round store seeds itself from lib/store/fresh.ts on its first read.
 //
 // Point it somewhere else with STELE_BASE_URL, for example
-//   STELE_BASE_URL=https://stele.vercel.app npm run demo:reset
+//   STELE_BASE_URL=https://stele-gules.vercel.app npm run demo:reset
 
 const base = (process.env.STELE_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const url = `${base}/api/reset`;

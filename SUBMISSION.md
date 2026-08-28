@@ -159,16 +159,17 @@ returned HTTP 405 on every URL tried during research, and the content was only e
 
 | What | URL |
 | --- | --- |
-| Live console | `<ADD_LIVE_URL>` |
+| Live console | https://stele-gules.vercel.app |
 | Repository | https://github.com/mericcintosun/stele |
 | Demo video | `<ADD_VIDEO_URL>` |
 
-The repository URL is filled in and public. **The two remaining tokens are placeholders, not URLs.**
-Until the live one is replaced, a reader can run the whole demo from a clone: the "Try it in 60
-seconds" block in `README.md` carries that path, and it needs no wallet, no account and no API key.
+The repository URL and the live console URL are both filled in and public. Start a review at
+https://stele-gules.vercel.app/console, which needs no wallet, no account and no API key. **One token
+remains a placeholder rather than a URL: `<ADD_VIDEO_URL>`**, because no take has been uploaded yet.
+A reader who prefers a clone has that path in the "Try it in 60 seconds" block in `README.md`.
 
-`<ADD_VIDEO_URL>` and `<ADD_LIVE_URL>` are byte identical to the tokens in `README.md` and
-`docs/VIDEO.md`, so one find and replace per token fixes every file at once.
+`<ADD_VIDEO_URL>` is byte identical to the token in `README.md`, so one find and replace fixes both
+files at once.
 
 ## 8. Opt-ins and separate submissions
 
@@ -239,5 +240,5 @@ Written as gaps, on purpose.
   per-thesis quota stays a small percentage of account equity until it is.
 - **The prize amounts and the within-side distribution are unverified**, for the HTTP 405 reason
   above.
-- **The live URL and the video URL are placeholders** until the manual checklist at the end of
-  `HANDOFF.md` is worked through.
+- **The video URL is still a placeholder** until the take is recorded and uploaded, item 3 and item 4
+  of the manual checklist at the end of `HANDOFF.md`. The live URL is filled in and answering.

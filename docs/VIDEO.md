@@ -31,8 +31,8 @@ hackathon that actually judged submissions. This one does not.
 
 ## Recording plan
 
-- **Record against `<ADD_LIVE_URL>/console` with the address bar visible.** Never localhost. A judge
-  watching a `localhost:3000` recording cannot tell whether anything is deployed.
+- **Record against https://stele-gules.vercel.app/console with the address bar visible.** Never
+  localhost. A judge watching a `localhost:3000` recording cannot tell whether anything is deployed.
 - **`ANTHROPIC_API_KEY` must be set on the deploy before the take**, so the console header reads
   **Anthropic API** and not **offline stub**. The AI model token allocation is awarded on proof of
   real model usage, and the header is the proof that is visible on camera.
@@ -83,10 +83,12 @@ protection.
 
 ## Links to replace before the video goes out
 
-Two placeholder tokens, each byte identical everywhere it appears, so one find and replace per token
-fixes every file at once.
+One placeholder token is left, `<ADD_VIDEO_URL>`, byte identical everywhere it appears, so one find
+and replace fixes every file at once.
 
-- The live URL token: `README.md`, `SUBMISSION.md`, this file. Note that `lib/config.ts` also holds a
-  `SITE_URL` constant for the og:image, which is **not** a token and has to be edited by hand if the
-  deployed URL differs from the one already written there.
 - The video URL token: `README.md`, `SUBMISSION.md`.
+
+The live URL is no longer a token. `https://stele-gules.vercel.app` is written out in `README.md`,
+`SUBMISSION.md`, this file and `scripts/demo-reset.mjs`, and `lib/config.ts` holds the same origin in
+its `SITE_URL` constant for the og:image. That constant is **not** a token: if the deploy ever moves,
+it has to be edited by hand along with the four documents.
