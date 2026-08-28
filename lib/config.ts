@@ -71,6 +71,14 @@ export const STORE_TIMEOUT_MS = 4000;
 export const BASE_URL = process.env.STELE_BASE_URL ?? "http://localhost:3000";
 
 /**
+ * The deployed origin, used only as metadataBase in app/layout.tsx so og:image
+ * resolves to an absolute URL in view-source. A plain constant rather than an
+ * env read: a wrong or missing variable here would silently ship a relative
+ * og:image, which every social and link preview drops.
+ */
+export const SITE_URL = "https://stele.vercel.app";
+
+/**
  * The two signals DEMO.md runs, by id. Step 2 sends an order, step 4 is the
  * refusal, and the thesis under the halt line is the one the refusal names.
  * Written down here so a seed edit that breaks the recording is one grep away.

@@ -14,7 +14,7 @@ const HOW_IT_WORKS = [
   {
     step: "03",
     title: "Closed PnL is written back to the thesis",
-    body: "When a position closes, its realized result lands on the thesis that opened it. That ledger is the only thing carried from round to round.",
+    body: "When a position closes, its realized result lands on the thesis that opened it. Press Close at stop on the console and watch one thesis change state. That ledger is the only thing carried from round to round.",
   },
   {
     step: "04",
@@ -74,15 +74,30 @@ export default function Home() {
           and why, on a single screen.
         </p>
 
+        <p className="max-w-3xl leading-relaxed text-ink/90">
+          The walk takes ninety seconds. Open the console and press Run decision loop on the SOL
+          signal: its thesis is 2.14% under water over seven closed trades, so the agent refuses its
+          own order and posts the refusal to the exchange.
+        </p>
+
         <div className="flex flex-wrap items-center gap-4 pt-2">
           <Link
             href="/console"
-            className="rounded-lg bg-acc px-4 py-2.5 text-sm font-semibold text-bg transition-opacity hover:opacity-90"
+            className="inline-flex min-h-11 items-center rounded-lg bg-acc px-5 text-sm font-semibold text-bg transition-opacity hover:opacity-90"
           >
-            Open the decision console
+            Watch the agent refuse its own order
           </Link>
-          <Link href="/log" className="text-sm text-mut transition-colors hover:text-acc">
-            Read the audit trail
+          <Link
+            href="/evidence"
+            className="inline-flex min-h-11 items-center px-2 text-sm text-mut transition-colors hover:text-acc"
+          >
+            Read the evidence trail
+          </Link>
+          <Link
+            href="#loop"
+            className="inline-flex min-h-11 items-center px-2 text-sm text-mut transition-colors hover:text-acc"
+          >
+            How the loop works
           </Link>
         </div>
       </header>
@@ -121,8 +136,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="space-y-5">
+      {/* How it works. The hero's "How the loop works" link lands here. */}
+      <section id="loop" className="scroll-mt-8 space-y-5">
         <h2 className="text-xl font-semibold tracking-tight">The loop, four steps</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {HOW_IT_WORKS.map((s) => (
