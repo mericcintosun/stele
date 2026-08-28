@@ -43,6 +43,11 @@ hackathon that actually judged submissions. This one does not.
   thing from a terminal.
 - **One dry run first**, all six steps, no recording. Watch specifically for step 6: its numbers were
   computed by hand rather than copied off a screen, so it is the step most likely to surprise you.
+  The dry run is also the first time anybody sees the rebuilt frontend in a browser, so use it to
+  check the sticky header, the phone width and the three column grid before the camera is on.
+- **Record only after the redeploy that carries the rebuilt frontend.** Every button, panel and badge
+  moved onto the primitives in `components/ui/`, so a take against an older deploy shows a screen
+  that no longer exists.
 - **One take, English voiceover, no setup narration.** The screen is already at `/console` when the
   recording starts.
 - **Leave a re-record slot before 2026-09-02 15:59 UTC.** Do not schedule the only take against the

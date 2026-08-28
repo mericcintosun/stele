@@ -93,6 +93,9 @@ live by a closed loss, and the valve reacts to it in the same second.
 
 - Next.js 15 (App Router) in `app/`, TypeScript strict, Tailwind CSS v4 with its tokens in the
   `@theme` block of `app/globals.css`
+- Three hand written UI primitives in `components/ui/` (button, card, badge) composed with a local
+  `cn()` in `lib/cn.ts`. **No UI kit, no `clsx`, no `tailwind-merge`, no component CLI:** every
+  control on every screen goes through those three files and every color comes from the token block
 - WEEX OpenAPI v3 over plain `fetch` with `node:crypto` HMAC SHA256 signing in `lib/weex.ts`, no
   third party client
 - `@anthropic-ai/sdk` in `lib/agent.ts` with tool-based structured output, validated with `zod`
@@ -269,7 +272,8 @@ One per numbered step in [DEMO.md](DEMO.md), plus the console at phone width.
 
 These files are **not in the repo yet.** They are captured by hand from the live URL before
 submitting, and the order to capture them in is item 2 of the manual checklist at the end of
-[HANDOFF.md](HANDOFF.md).
+[HANDOFF.md](HANDOFF.md). Capture them **after** the current redeploy: the frontend was rebuilt in
+the last phase, so anything captured before it is already stale.
 
 ## Store setup
 

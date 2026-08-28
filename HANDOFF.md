@@ -1543,3 +1543,264 @@ Redeploy, then open `https://stele-gules.vercel.app/console` and read the second
 header: it has to say `Ledger source: seeded fixture`. Then walk DEMO.md step 4 once and confirm the
 red REFUSED row is still there. After that the queue is items 2 through 8 above, and item 8 is the
 only one that closes the return-performance gap the panel has now named twice.
+
+---
+
+## 9. Phase 8: frontend overhaul, then freeze and package
+
+**Goal.** The loop was finished before this phase and nothing about what DEMO.md steps 1 through 6 do
+changed. What changed is what they look like when a judge opens
+`https://stele-gules.vercel.app/console` cold: one primitive layer behind every control, one type
+scale, the brand mark in the header, a landing page that sells step 4 in ten seconds, and every
+empty, loading and error state drawn with the same primitives.
+
+**Status.** All five slices landed. Nothing was cut, so the cut protocol was never entered and
+`components/brand/LedgerPattern.tsx` survives. Unverified: every item that needs a command
+(`npm install`, `npm run build`, `npm test`, the redeploy) and **everything visual**. This agent had
+Write, Edit, Read, Glob and Grep only. No screen in this phase was rendered in a browser by anybody,
+so every claim below is a claim about a file, not about a pixel.
+
+### Decisions
+
+- **The primitives are written by hand in shadcn shape, not installed.** `clsx`, `tailwind-merge`,
+  `class-variance-authority` and the shadcn CLI are all absent from `package.json` and this phase may
+  not add a dependency. `lib/cn.ts` is a plain join with no dependency, and
+  `components/ui/{button,card,badge}.tsx` each carry a variant record, a size or shape record, `cn()`
+  composition and props extending the native element.
+- **`cn()` joins and does not resolve conflicts, so nothing that can collide is left to `className`.**
+  There is no `tailwind-merge` here, and two conflicting Tailwind utilities on the same element
+  resolve by stylesheet order rather than by the order they were written in. Every colliding decision
+  (padding, background, border color, title size, button size) is therefore a record entry:
+  `CARD_PAD`, `CARD_TONE`, `TITLE_SIZE`, `SIZE`, `VARIANT`. `className` is for additions only.
+  This is the single most load-bearing constraint in the primitive layer and it is written into the
+  header comment of each file.
+- **Two exports per interactive primitive: `Button` and `buttonClass()`.** A `next/link` `Link` that
+  has to look like a button takes `buttonClass(...)`, so the landing CTA and the header action are
+  real anchors instead of a button wrapping an anchor. Same for `cardClass()` and `badgeClass()`.
+- **Badge border alpha standardised at 40%.** `VERDICT_STYLE` in `DecisionConsole` carried
+  `border-*/50` and `STATE_STYLE` in `ThesisLedger` carried `border-*/40`. The five badge variants
+  use 40% throughout. Fills and text colors are byte identical to both old maps, so no badge changes
+  hue; the three verdict pills lose 10% of border alpha. That is the only visual value in the repo
+  that changed without being asked to.
+- **`components/ThesisLedger.tsx` keeps its bare `<button>`.** It is a full width ledger row, not a
+  labelled control, and routing it through the Button primitive would have imposed
+  `inline-flex justify-center` on a block that is a stack of four rows. Its classes go through `cn()`
+  and it carries the same `focus-visible:ring-2 focus-visible:ring-acc` the primitive does, plus
+  `aria-pressed` which it did not have before. It is the only `<button` outside `components/ui/`.
+- **The type scale is plain CSS classes, not new `@theme` keys.** `.type-display`, `.type-h1`,
+  `.type-h2`, `.type-h3`, `.type-body`, `.type-lead` and `.measure` are written directly in
+  `app/globals.css` under the token block. A `--text-*` entry in `@theme` would have generated the
+  utility too, but this agent cannot run a build to confirm the generated name, and an ordinary CSS
+  class cannot fail to exist. `.measure` is `68ch`, inside the 65 to 75 character band.
+- **No hex value entered `app/` or `components/`.** `components/brand/Logo.tsx` and
+  `components/brand/LedgerPattern.tsx` are drawn with `currentColor` and take their hue from a
+  `text-*` token class, which is why the brand work did not need a third documented exception.
+  `public/logo.svg` is a new asset outside both directories and copies `#5eead4` and `#e8edf6` from
+  the `@theme` block by hand, with a comment saying so.
+- **`app/opengraph-image.tsx` was verified, not changed.** Its four constants at `:15-18` still equal
+  `--color-bg`, `--color-ink`, `--color-acc` and `--color-mut` at `app/globals.css:7`, `:11`, `:13`
+  and `:12`. No drift, nothing to fix. `app/icon.svg` still holds the favicon slot and no
+  `app/icon.tsx` was created, because two `icon.*` files in one segment collide.
+- **No Meshy or 3D asset.** No `mcp__meshy__*` tool exists in this session, so that step was skipped
+  silently as the brief allows and the SVG brand stands on its own.
+- **`SUBMISSION.md` was not edited at all.** The brief allows one line in block 9 only if this phase
+  created a gap. It did not: no route, no dependency, no environment variable and no schema changed,
+  and the stack table's Styling row is still accurate. Adding a line would have been noise in the one
+  document that gets pasted into a form.
+
+### Failed attempts
+
+None. Four things were caught by reading before they shipped:
+
+- `Badge` was first given `className="px-2 font-bold"` at the verdict pill call site, which is exactly
+  the conflicting-utility trap the `cn()` comment warns about: `px-1.5` from the shape record and
+  `px-2` from the caller resolve by stylesheet order, not by argument order. The override was dropped
+  and the pill takes the record's padding.
+- The `md:hidden` on the header action was first written onto the `Link` itself, next to the
+  `inline-flex` that `buttonClass()` supplies. Same trap, between two display utilities. It is a
+  wrapping `<span className="hidden md:block">` instead.
+- `CardHeaderProps` was written as an empty interface extending `HTMLAttributes<HTMLElement>`, which
+  is a lint smell even where no lint runs. It is a type alias.
+- The `/evidence` summary strip was briefly nested in a `CardBody`, which left the whole block
+  indented one level short of its tags. `Card` carries no padding of its own, so `p-4` on the `Card`
+  produces the same box with no extra nesting, and the file's indentation stayed correct.
+
+### Files changed
+
+New: `lib/cn.ts`, `components/ui/button.tsx`, `components/ui/card.tsx`, `components/ui/badge.tsx`,
+`components/brand/Logo.tsx`, `components/brand/LedgerPattern.tsx`, `public/logo.svg`.
+
+Edited: `app/globals.css` (type scale appended under the token block, `@theme` untouched),
+`app/layout.tsx` (sticky blurred header), `app/page.tsx` (rebuilt: hero, three product sections,
+real footer), `app/error.tsx`, `app/not-found.tsx`, `app/console/loading.tsx`,
+`app/console/page.tsx` (heading class only), `app/evidence/loading.tsx`, `app/evidence/page.tsx`,
+`components/SiteNav.tsx`, `components/DecisionConsole.tsx` (markup and classes only),
+`components/ConsoleStates.tsx`, `components/ThesisLedger.tsx`, `components/DecisionLog.tsx`,
+`README.md` (one stack bullet, one screenshots note), `docs/VIDEO.md` (two recording-plan lines),
+`HANDOFF.md` (this section), `.farm-commits.json`.
+
+Not touched, deliberately: `lib/valve.ts`, `lib/weex.ts`, `lib/agent.ts`, `lib/attribution.ts`,
+`lib/schemas.ts`, everything under `lib/store/` and `app/api/`, `lib/data/seed.json`, `SUBMISSION.md`,
+`DEMO.md`, `DELIVERY.md`, `docs/RESULTS.md`, `docs/TRADER-SKILL.md`, `package.json`, `.env.example`,
+`.gitignore`, `next.config.ts`, `tests/`.
+
+Still tombstoned and still needing `git rm`: `lib/data.ts`, `lib/adapter.ts`.
+
+### Commands run
+
+**None. This agent has no shell**: no `npm install`, no `npm run build`, no `npm test`, no dev
+server, no screenshot. Every acceptance item that needs a command is the runner's.
+
+### Open questions
+
+- **Does `focus-visible:ring-inset` exist in Tailwind v4?** It is used once, in
+  `components/ThesisLedger.tsx:52`, so the ledger row's focus ring sits inside its own edge. If v4
+  renamed it, Tailwind generates nothing for the class and the ring simply draws on the outside. It
+  cannot fail the build, but it is worth one look in a browser.
+- **Does the sticky header cover anything at 360px?** `app/layout.tsx` gives it `z-40` and the main
+  content has no fixed element of its own, so nothing should overlap. Unverified visually.
+- **Is the wordmark in `public/logo.svg` legible everywhere?** It draws its text with a system font
+  stack rather than an embedded path, so a viewer without those faces gets a fallback. Nothing in the
+  app renders that file today: the header uses the inline `Logo` component instead, and the file
+  exists as the asset a form or a listing can be handed.
+- Carried forward and unchanged from Phase 7: whether the deployed origin really is
+  `stele-gules.vercel.app`, whether the live deploy has `KV_REST_API_URL` and `KV_REST_API_TOKEN`
+  set, whether the four skill names and the install command are current, whether the 11 step
+  checklist wording is the official one, whether `cmt_ltcusdt` is in the competition universe, whose
+  name goes on the `LICENSE` copyright line, and whether the `New user pool` row is claimable.
+
+### Acceptance gate, checked by reading files
+
+Met:
+
+- **Every control on a demo route goes through `components/ui/*`.** Grep for `<button` across
+  `app/` and `components/` returns three hits: `components/ThesisLedger.tsx:46`, and two inside
+  `components/ui/button.tsx` (one in a comment at `:10`, the element itself at `:64`). The
+  `ThesisLedger` row composes with `cn()` at `:50-56` and carries its focus ring at `:52`.
+- **`lib/cn.ts`, `components/ui/button.tsx`, `card.tsx` and `badge.tsx` all exist**, and every
+  `@/components/ui/*` and `@/components/brand/*` import in the tree resolves to one of them.
+  `DecisionConsole.tsx` imports `Badge`, `Button` and the card family at `:23-25`.
+- **Hex colors.** Grep across `app/` and `components/` finds them only in `app/globals.css:7-16`,
+  `app/icon.svg:5` and `:8`, and `app/opengraph-image.tsx:15-18`. `public/logo.svg` is the new asset
+  the brief allows, outside both directories, with the copy documented in the file.
+- **Brand.** `public/logo.svg` exists. `components/brand/Logo.tsx` is imported by
+  `components/SiteNav.tsx` at `:18` and rendered at `:53`. `components/brand/LedgerPattern.tsx` is imported by
+  `app/page.tsx` and by `components/ConsoleStates.tsx`, and rendered in the landing hero and in
+  `SignalQueueEmptyState`. `app/icon.svg` and `app/opengraph-image.tsx` both still exist and there is
+  no `app/icon.tsx`.
+- **Shell.** `app/layout.tsx` contains `sticky top-0 z-40` on the header with a token background and
+  the existing bottom border. `components/SiteNav.tsx` carries the `Open the console` action at `md`
+  and up, plus the same action inside the mobile disclosure list, and keeps `aria-expanded` and
+  `aria-controls` on the disclosure button.
+- **Landing.** `app/page.tsx` has one hero with the real one-liner and exactly one primary-variant
+  control, the `Watch the agent refuse its own order` link into `/console`. `Read the evidence trail`
+  and `How the loop works` are plain links. `id="loop"` is present. Three product sections follow,
+  then a footer carrying `https://github.com/mericcintosun/stele` and
+  `https://dorahacks.io/hackathon/weex-ai-wars-2-tw`, plus the license line and the seeded-data
+  sentence. Every `href` in the file is `/console`, `/evidence`, `#loop` or one of those two URLs,
+  **with one deliberate exception**: the brief also asked the footer for a `DEMO.md` link, and the
+  deployed site has no route for a markdown file, so it points at
+  `https://github.com/mericcintosun/stele/blob/main/DEMO.md`, a path under the repository URL rather
+  than a fourth destination.
+- **Every factual sentence on the landing page survived.** The Season 1 headline, the three ranking
+  criteria, the four loop steps and the competitor table are the same strings as before.
+- **Protected strings.** `Run decision loop`, `Close at stop`, `Reset round`, `REFUSED`,
+  `ORDER SENT`, `SIZE CUT` and the `0.00 USDT deployed...` sentence are byte identical in
+  `components/DecisionConsole.tsx`; both `Ledger source:` sentences are byte identical in
+  `app/console/page.tsx:36-37` and `app/evidence/page.tsx:182-183`.
+- **No decision logic was touched.** No file under `lib/valve.ts`, `lib/weex.ts`, `lib/agent.ts`,
+  `lib/attribution.ts`, `lib/store/` or `app/api/` was opened for writing. Inside
+  `components/DecisionConsole.tsx` the fetch calls, the state variables, the idempotency keys and the
+  four handler names (`refresh`, `evaluate`, `closeAtStop`, `reset`) are unchanged; only markup,
+  class names and two empty-state blocks moved.
+- **`lib/data/seed.json` is untouched**, so the console, the ledger, the positions table and the
+  evidence trail are all non-empty with zero environment variables set.
+- **Responsive and a11y, in code.** Both tables keep an `overflow-x-auto` ancestor in the same file
+  (`app/page.tsx` on the `Card` around the comparison table, `components/DecisionConsole.tsx` on the
+  `div` around the positions table) and both keep a `min-w-` on the table itself. The console grid
+  keeps `lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,380px)]` and one column below it. Grep
+  for `outline-none` across `app/` and `components/` returns twelve hits and every one is
+  `focus-visible:outline-none` followed by `focus-visible:ring-2 focus-visible:ring-acc`. Every interactive element keeps `min-h-11`. Both
+  decorative SVGs carry `aria-hidden="true"` and `pointer-events-none`.
+- **States.** `app/console/loading.tsx`, `app/evidence/loading.tsx`, `app/error.tsx`,
+  `app/not-found.tsx`, `components/ConsoleStates.tsx`, the two empty blocks in `DecisionConsole` and
+  the empty state on `/evidence` all import from `components/ui/`.
+- **Package.** `README.md` keeps its order and its prize cells are byte identical, the HTTP 405 note
+  is still beneath them, and the seven `docs/step-*.png` references are present with the note that
+  they are captured by hand from the live URL. `<ADD_VIDEO_URL>` is byte identical in `README.md:14`,
+  `README.md:228` and `SUBMISSION.md:164`. Every mermaid node in `README.md` still names a file that
+  exists; no file was renamed this phase. `docs/VIDEO.md` names steps 1 through 6, its shot seconds
+  sum to 90 (12 + 23 + 12 + 15 + 13 + 15), it says the length limit is unpublished rather than
+  inventing one, and it carries both a dry-run line and a re-record slot before 2026-09-02 15:59 UTC.
+- **Environment.** All eleven `process.env.X` reads in the tree (`ADAPTER_MODE`, `KV_REST_API_URL`,
+  `KV_REST_API_TOKEN`, `STELE_BASE_URL`, `WEEX_API_KEY`, `WEEX_API_SECRET`, `WEEX_API_PASSPHRASE`,
+  `WEEX_API_HOST`, `WEEX_VENUE`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`) have a line in
+  `.env.example`. Nothing was added or removed. `.gitignore:4-5` still has `.env*` and
+  `!.env.example`.
+- **Secret scan of the working tree.** Grepped `sk-ant-`, `PASSPHRASE=` with a value, `SECRET=` with
+  a value and `API_KEY=` with eight or more characters. **No match anywhere except the two lines in
+  this file that describe the earlier scans.** The git history scan is the runner's and was not done
+  here.
+
+Unmet, with the evidence that is missing:
+
+- **Every command is unverified.** No `npm install`, no `npm run build`, no `npm test`, no redeploy.
+  This phase touched fifteen files under `app/` and `components/` and added seven new modules, so the
+  build is a real gate rather than a formality.
+- **Nothing visual is verified.** No browser, no screenshot, no Lighthouse run. The stranger test, the
+  360 / 768 / 1280 widths, the contrast of the account strip and the log stream, and the
+  performance and accessibility scores are all the runner's to check. Nothing in this log claims a
+  screen was seen.
+- **The video URL is still a placeholder.** No take exists.
+- **No account results exist.** `docs/RESULTS.md` is entirely `to fill`, and it is still the largest
+  scored gap.
+- **The seven screenshots do not exist**, and now they must be captured after this phase's redeploy
+  rather than before it.
+- **The Trader Skill install, the allowlist and the Google Form** are all account work outside this
+  repo and none of them moved this phase.
+
+### Next best step
+
+`npm install`, `npm run build`, then redeploy and open `https://stele-gules.vercel.app/` cold in a
+private window at 360px and again at 1280px. The first thing to check is the header: the brand mark
+next to the wordmark, the `Open the console` action at desktop width, the disclosure button below it.
+Then `/console` for the three column grid, then DEMO.md step 4 once for the red REFUSED row. After
+that the checklist below, in order.
+
+---
+
+## Manual submit checklist, the current one
+
+This replaces the Phase 6 and Phase 7 copies above. Item 1 gates 2, 3 and 4; items 5 through 8 are
+account work and can run in parallel, and item 8 is the only one that closes the return-performance
+gap two panels have now named.
+
+1. **Redeploy and confirm the origin.** `npm install`, `npm run build`, deploy, then open
+   `https://stele-gules.vercel.app/console` cold. The second line under the header has to read
+   `Ledger source: seeded fixture`. If the deployed origin is not `stele-gules.vercel.app`, correct
+   it in `README.md`, `SUBMISSION.md`, `docs/VIDEO.md`, `scripts/demo-reset.mjs` and by hand at
+   `SITE_URL`, `lib/config.ts:79`, which **no find and replace over the documents will reach**.
+2. **Capture `docs/step-1.png` through `docs/step-6.png` and `docs/step-phone.png`** from the live
+   URL, one per DEMO.md step plus `/console` at 360px width. After the redeploy, never before it.
+3. **Record the 90 second take** against the live URL with `ANTHROPIC_API_KEY` set, so the console
+   header reads "Anthropic API" and not "offline stub". Run `npm run demo:reset` against the live URL
+   immediately before the take, and do the dry run first. Shot list and timing in `docs/VIDEO.md`.
+4. **Upload the video, then replace `<ADD_VIDEO_URL>`** in `README.md` and `SUBMISSION.md`. The token
+   is byte identical in both, so it is one find and replace.
+5. **Install the four WEEX skills on the trading host**:
+   `npx skills add https://github.com/weex-labs/weex-agent-skills --all`. `docs/TRADER-SKILL.md` has
+   the names and the 404 pitfall. This is a competition requirement, not a nicety.
+6. **File the WEEX AI agent partner Google Form**, pasting from `SUBMISSION.md`. Its URL is still
+   UNKNOWN and its closing date is unpublished, so treat it as possibly earlier than
+   2026-09-02 15:59 UTC.
+7. **Confirm the WEEX allowlist** for the trading UID and the server's static IP. Manual approval by
+   WEEX staff, no published turnaround.
+8. **Fill `docs/RESULTS.md`** from the sim run, then from each round as it closes. Every cell reads
+   `to fill` today. **No agent writes a number into that file.** A blank cell is honest; a guessed
+   one is `fabricating AI logs` under the WEEX rules and is disqualifying.
+9. **Code freeze.**
+
+**Code freeze, in full.** After the video is recorded, any change to the site desyncs the take from
+the live URL and is **forbidden**. That includes a one word copy fix and a spacing tweak. Late
+findings go into this file, and where honesty requires it, into a known-gap line in `SUBMISSION.md`.
+Nothing else lands.
