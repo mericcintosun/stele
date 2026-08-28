@@ -8,6 +8,7 @@
 // Every factual sentence here is a verified competition claim or a statement
 // about a file in this repo. The layout changed in Phase 8; the claims did not.
 
+import Image from "next/image";
 import Link from "next/link";
 import LedgerPattern from "@/components/brand/LedgerPattern";
 import HeroLedger from "@/components/brand/HeroLedger";
@@ -139,7 +140,21 @@ export default function Home() {
             </dl>
           </div>
 
-          <HeroLedger />
+          <div className="relative lg:pr-40">
+            {/* Meshy üretimi marka nesnesi: taşa kazınmış teal devre hatlı stel.
+                Kart hafif solda durur, anıt sağında dikey ortalı bir şerit
+                olarak görünür; kenarları radyal maskeyle zemine erir. */}
+            <Image
+              src="/brand/stele-monument.png"
+              alt=""
+              aria-hidden
+              width={520}
+              height={520}
+              priority
+              className="pointer-events-none absolute -right-10 top-1/2 -z-10 hidden w-[420px] max-w-none -translate-y-1/2 [mask-image:radial-gradient(closest-side,black_68%,transparent_100%)] lg:block"
+            />
+            <HeroLedger />
+          </div>
         </div>
       </header>
 
