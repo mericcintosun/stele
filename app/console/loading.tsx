@@ -1,7 +1,10 @@
-// Skeleton for /console. Token classes only, no spinner library.
+// Skeleton for /console. Drawn with the card primitive, no spinner library.
 
-function Block({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-xl border border-line bg-panel ${className}`} />;
+import { cardClass } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
+
+function Block({ className }: { className?: string }) {
+  return <div className={cn(cardClass("default"), "animate-pulse", className)} />;
 }
 
 export default function Loading() {
@@ -23,6 +26,8 @@ export default function Loading() {
         </div>
         <Block className="h-96" />
       </div>
+
+      <p className="font-mono text-[11px] text-mut">Reading the round from the store.</p>
     </div>
   );
 }
