@@ -12,20 +12,47 @@ performance, risk control and strategy stability together. WEEX put their own Se
 > Live console: `<ADD_LIVE_URL>`
 >
 > Video: `<ADD_VIDEO_URL>`
+>
+> Repository: https://github.com/mericcintosun/stele
+
+**Both of the first two are placeholder tokens, not URLs.** Until they are replaced, a judge should
+take path B below, which runs the entire demo from a clone with nothing configured.
 
 **If you read nothing else, go to [DEMO.md](DEMO.md) step 4.** That is the agent refusing an order it
 wanted to place, and WEEX issuing a receipt for the refusal.
 
 ## Try it in 60 seconds
 
-1. Open `<ADD_LIVE_URL>/console`. **No wallet, no account, no API keys required.** Every panel is
-   populated on seeded data with zero environment variables set.
-2. Press **Run decision loop** on `SIG-9104`, the SOL squeeze signal.
-3. Its thesis `TH-SQZ-LONG` reads **-2.14% over 7 closed trades**, past the -2.0% halt line. The
-   valve multiplier goes to `0.00x`, a red **REFUSED** row appears, `0.00 USDT deployed` is printed,
-   and the refusal is posted to `/capi/v3/order/uploadAiLog` as a `stage: "rejection"` record.
+**No wallet, no account and no API key is needed on either path.** Every panel is populated on
+seeded data with zero environment variables set.
+
+**Path A, the deployed console.** Open `<ADD_LIVE_URL>/console`.
+
+**Path B, from a clone. Take this one while the live URL above is still a placeholder.**
+
+```bash
+git clone https://github.com/mericcintosun/stele
+cd stele
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000/console`. Either way, the same three steps:
+
+1. Find `SIG-9104` in the signal queue, the SOL squeeze signal.
+2. Press **Run decision loop** on it.
+3. Its thesis `TH-SQZ-LONG` shows a seeded ledger of **-2.14% over 7 closed trades**, past the -2.0%
+   halt line. The valve multiplier goes to `0.00x`, a red **REFUSED** row appears, `0.00 USDT
+   deployed` is printed, and the refusal is posted to `/capi/v3/order/uploadAiLog` as a
+   `stage: "rejection"` record.
 
 That is the whole product in one click. [DEMO.md](DEMO.md) walks all six steps in order.
+
+**Where the real numbers go.** Every figure on that screen is seeded from `lib/data/seed.json` and
+none of it is an account result. Live account numbers live in
+[docs/RESULTS.md](docs/RESULTS.md), which is an **empty container until the WEEX allowlist clears**:
+per-round equity and drawdown, per-thesis realized PnL across the five rounds, and the sim run of the
+11 step API checklist. No agent may fill a cell in it.
 
 ## The problem
 
@@ -59,6 +86,24 @@ screen, which is DEMO.md step 6: press **Close at stop** on the `TH-VOL-CRUSH` p
 -4.50 USDT lands on that thesis, its ledger crosses the halt line, its badge turns red with no page
 reload, and the signal waiting behind it goes from half size to refused. The agent's memory is edited
 live by a closed loss, and the valve reacts to it in the same second.
+
+## Tech stack
+
+- Next.js 15 (App Router) in `app/`, TypeScript strict, Tailwind CSS v4 with its tokens in the
+  `@theme` block of `app/globals.css`
+- WEEX OpenAPI v3 over plain `fetch` with `node:crypto` HMAC SHA256 signing in `lib/weex.ts`, no
+  third party client
+- `@anthropic-ai/sdk` in `lib/agent.ts` with tool-based structured output, validated with `zod`
+  before it is trusted
+- Route handler on the Node runtime for the decision loop (`app/api/decide/route.ts`), deploys to
+  Vercel with no custom server
+- `node:test` for the pure modules: `lib/valve.ts`, `lib/attribution.ts` and the edge schemas
+- One JSON round snapshot in `lib/store/round.ts` over an optional Upstash compatible Redis REST
+  endpoint. No ORM, no SQL, no migration step.
+
+Any earlier description of this project that lists Python, FastAPI, SQLite or a systemd timer is
+**superseded** by this repo: there is no `.py` file, no database file and no timer unit in it, and
+`SUBMISSION.md` block 2 is the authoritative stack listing.
 
 ## Architecture
 
@@ -106,19 +151,45 @@ round before the POST is attempted, so a rejected write is a queued record rathe
 trail out of order is not evidence. The queue depth is visible in the console header and the whole
 trail is on `/evidence`.
 
+**The official WEEX Trader Skill.** The rules require the AI side to connect it on the trading
+account. It is installed on the operator's agent host and is deliberately **not vendored into this
+repo**, so there is no `skills/` directory here to mistake for one.
+[docs/TRADER-SKILL.md](docs/TRADER-SKILL.md) carries the install command, the four official skill
+names, and a table mapping each one to the call in this repo that covers the same ground. That
+mapping is an equivalence, not a substitution: the install stays a human step on the checklist in
+`DELIVERY.md`.
+
 **Anthropic model chain** (`lib/agent.ts`). Three links tried in order, all returning the same shape:
 the Anthropic SDK with structured tool output when `ANTHROPIC_API_KEY` is set, then the developer's
 local `claude` CLI, then a deterministic offline stub. The model does exactly two jobs: confirm the
 signal satisfies the written precondition, and write the explanation that goes to WEEX. It never
 sizes the order.
 
-## Tech stack
+## Risk controls
 
-- Next.js 15 (App Router), TypeScript strict, Tailwind CSS v4
-- WEEX OpenAPI v3 over `fetch` with `node:crypto` HMAC SHA256 signing, no third party client
-- `@anthropic-ai/sdk` with tool-based structured output, validated with `zod` before it is trusted
-- Route handler on the Node runtime for the decision loop, deploys to Vercel with no custom server
-- `node:test` for the pure modules: the valve, attribution and the edge schemas
+Every clamp below is in one file, `lib/valve.ts`, is pure arithmetic with no I/O, and is covered by
+`tests/valve.test.ts`. The model never sees any of it.
+
+| Control | Value | Where |
+| --- | --- | --- |
+| Halt line. A thesis at or past it gets zero capital and the agent refuses its own order. | `-2.0%` realized on that thesis | `lib/valve.ts:16`, branch at `:42-49` |
+| Throttle to half size, on either trigger | `-0.5%` realized **or** `5.0%` max drawdown | `lib/valve.ts:18-20`, branch at `:60-67` |
+| Cold start. A thesis with too few closed trades cannot size up. | `0.5x` under `6` closed trades | `lib/valve.ts:22-24`, branch at `:69-76` |
+| Cumulative per-thesis quota. Halts at under 25 USDT headroom **regardless of leverage**. | `quotaUsdt - quotaUsedUsdt < 25` | `lib/valve.ts:51-58` |
+| Base notional a thesis at full confidence deploys per order | `240 USDT`, then `min(wanted, quotaRemaining)` | `lib/valve.ts:26`, `sizeOrder()` at `:89-93` |
+| Exchange-side take profit and stop loss, attached at entry | stop `2.0%` of entry, take profit twice that | `lib/valve.ts:99-106` |
+
+The last row is the one that matters when things go wrong: the bracket is sent to WEEX with the entry
+order, so **the position stays protected if the agent process dies mid round**. It does not depend on
+anything in this repo still running.
+
+**What does not exist, stated plainly: there is no account-level equity clamp in code.** The
+account-level limit today is the sum of the per-thesis quotas plus the human keeping the deposit
+minimal, which is why the verified-unknowns list in `HANDOFF.md` says to participate with the minimum
+amount until the starting capital and the leverage cap for season 2 are confirmed. Season 1 had the
+organizer deposit 1,000 USDT with leverage capped at 20x, and that has **not** been confirmed for AI
+Wars II. A real account-level clamp, one that reads equity and refuses across all six theses at
+once, is a Phase 7 item and is **not** in this build.
 
 ## Quickstart
 
@@ -148,8 +219,9 @@ build step and no test framework in `devDependencies`.
 
 | Artifact | Where | Notes |
 | --- | --- | --- |
-| Live console | `<ADD_LIVE_URL>` | Vercel. Start at `/console`, DEMO.md step 4 is the wow step. |
-| Demo video | `<ADD_VIDEO_URL>` | 90 second single take. Shot list in [docs/VIDEO.md](docs/VIDEO.md). |
+| Live console | `<ADD_LIVE_URL>` | Vercel. Start at `/console`, DEMO.md step 4 is the wow step. Placeholder token until the deploy is confirmed: use path B of "Try it in 60 seconds". |
+| Demo video | `<ADD_VIDEO_URL>` | 90 second single take. Shot list in [docs/VIDEO.md](docs/VIDEO.md). Placeholder token until the take is uploaded. |
+| Repository | https://github.com/mericcintosun/stele | Public. Runs every DEMO.md step from a clone with zero environment variables. |
 | WEEX venue | `/capi/v3/sim` demo futures | Flipped by `WEEX_VENUE`. `pathFor()` in `lib/weex.ts` is the whole switch. |
 
 There is no chain, no contract and no explorer in this project. It is an exchange API client, so
@@ -257,6 +329,9 @@ record in full against the 1000 character cap.
 
 ## What we would build next
 
+- An account-level equity clamp. Today the only account-level limit is the sum of the per-thesis
+  quotas plus a minimal deposit, as `## Risk controls` says above. A real one reads account equity
+  and refuses across all six theses at once, which is a different clamp from the six that exist.
 - A persisted ledger. `lib/data/seed.json` behind one round blob is still the whole persistence
   layer, so there is no closed trade table and no record of a round that has ended.
 - The real attribution job on a timer. `lib/store/weex-store.ts` reads closed fills from

@@ -29,14 +29,38 @@ So this file exists for three real destinations and nothing else:
 Everything else in this repo, the console included, is there because it makes the trading agent
 inspectable and its AI participation provable. Not because a form asked for it.
 
-## 2. Title and tagline
+## 2. Tech stack, authoritative
+
+**This block supersedes every earlier stack listing, including the one in the hackathon idea record.**
+If a description elsewhere says Python, FastAPI, SQLite or a systemd timer, that listing is
+superseded by this repo: there is no Python file, no database and no timer in it. The round store is
+one JSON snapshot owned by `lib/store/round.ts`, held in a module scope singleton by default and in
+an optional Upstash compatible Redis REST endpoint when `KV_REST_API_URL` and `KV_REST_API_TOKEN` are
+set. Nothing else persists anything.
+
+| Layer | What it actually is | File you can open |
+| --- | --- | --- |
+| Framework | Next.js 15, App Router, no custom server | `app/api/decide/route.ts` |
+| Language | TypeScript, strict | `lib/valve.ts` |
+| Styling | Tailwind CSS v4, tokens in the `@theme` block, no `tailwind.config.js` | `app/globals.css` |
+| WEEX client | `node:crypto` HMAC SHA256 signing over plain `fetch`, no third party client library | `lib/weex.ts` |
+| Model | `@anthropic-ai/sdk`, `client.messages.create` with a tool and `tool_choice` | `lib/agent.ts` |
+| Validation | `zod` over the model answer and the edge schemas | `lib/schemas.ts` |
+| Tests | `node:test`, no test framework in `devDependencies` | `tests/valve.test.ts` |
+| Store | one JSON round snapshot, optional Redis REST, no ORM and no SQL | `lib/store/round.ts` |
+| Deploy | Vercel, standard Next build | `next.config.ts` |
+
+The npm scripts are `dev`, `build`, `start`, `seed`, `demo:reset` and `test`, all at
+`package.json:6-11`. There is no migration command, because there is nothing to migrate.
+
+## 3. Title and tagline
 
 **Stele**
 
 A WEEX perpetual futures agent that ties every order to a named thesis, keeps a realized profit and
 loss ledger for each one, and cuts the capital of any thesis that is losing money.
 
-## 3. One paragraph description
+## 4. One paragraph description
 
 An agent with a single total PnL number cannot say which of its ideas lost the money, so it keeps
 running the broken one all week. WEEX published their own Season 1 headline as 80% win rate to 40%
@@ -46,7 +70,7 @@ thesis's own ledger, not from the agent's overall performance, so a losing reaso
 whether or not the model still likes it. A thesis past the halt line gets zero capital and the agent
 refuses its own order, and the refusal is posted to WEEX as evidence exactly like an order would be.
 
-## 4. Full description
+## 5. Full description
 
 **What it is.** A Next.js console over a WEEX OpenAPI v3 trading agent. One screen shows the six
 written theses with their realized PnL, the market strip, the open positions, the signal queue and
@@ -82,6 +106,11 @@ the uploadAiLog stream. `/evidence` shows the full AI participation receipt trai
   Going live is one environment variable, `WEEX_VENUE=live`.
 - **Anthropic, `lib/agent.ts`.** `client.messages.create` with a `record_decision` tool and
   `tool_choice`, answer validated with `zod` before it is trusted.
+- **The official WEEX Trader Skill integration** is installed on the operator's agent host and is
+  **not vendored into this repo**. `docs/TRADER-SKILL.md` carries the install command, the four
+  official skill names, the `weex-agent-skills` repository URL, and a table mapping each skill to the
+  call here that covers the same ground. The mapping is an equivalence, not a substitution: the
+  install remains a required human step, tracked in `DELIVERY.md`.
 
 **Real vs mocked. The mocked list is not optional and it is complete.**
 
@@ -109,7 +138,7 @@ Mocked:
 - **The uploadAiLog queue has no retry timer.** It replays on demand only.
 - The deployed demo and the recording run on `ADAPTER_MODE=fake`.
 
-## 5. Tracks applied for
+## 6. Tracks applied for
 
 | Track | Prize (as recorded) | Rests on |
 | --- | --- | --- |
@@ -126,18 +155,22 @@ The prize amounts are as announced and **not independently verified**: the DoraH
 returned HTTP 405 on every URL tried during research, and the content was only ever read through an
 `r.jina.ai` mirror. The within-side distribution is not published anywhere we could read.
 
-## 6. Links
+## 7. Links
 
 | What | URL |
 | --- | --- |
 | Live console | `<ADD_LIVE_URL>` |
-| Repository | `<ADD_REPO_URL>` |
+| Repository | https://github.com/mericcintosun/stele |
 | Demo video | `<ADD_VIDEO_URL>` |
+
+The repository URL is filled in and public. **The two remaining tokens are placeholders, not URLs.**
+Until the live one is replaced, a reader can run the whole demo from a clone: the "Try it in 60
+seconds" block in `README.md` carries that path, and it needs no wallet, no account and no API key.
 
 `<ADD_VIDEO_URL>` and `<ADD_LIVE_URL>` are byte identical to the tokens in `README.md` and
 `docs/VIDEO.md`, so one find and replace per token fixes every file at once.
 
-## 7. Opt-ins and separate submissions
+## 8. Opt-ins and separate submissions
 
 **`DELIVERY.md` exists in this repo** and is the per-track manual checklist: entry mode, the human
 action, the deadline and which DEMO.md step backs each row. Read it alongside this section rather
@@ -157,12 +190,42 @@ Two requirements are separate submissions and neither is satisfied by the main r
    rather than the reason to leave it late.
 
 **The main deadline is 2026-09-02 15:59 UTC.** Both items above have their own unpublished timing and
-neither inherits that date.
+neither inherits that date. Item 1's closing date is **unpublished, treat it as possibly earlier**;
+item 2's approval turnaround is **unpublished, no turnaround is promised anywhere**.
 
-## 8. Known gaps
+### The full before-submitting list, carried from `DELIVERY.md`
+
+Byte for byte the same items, so this file stands on its own when it is being pasted into a form.
+
+- [ ] Side selected as **AI Team** at registration. This cannot be changed afterwards.
+- [ ] WEEX API key, secret and passphrase created under API Management and set on the deploy.
+- [ ] WEEX UID and the trading server's static IP submitted to the allowlist, with a timestamp
+      recorded so the wait is measurable.
+- [ ] The four official WEEX skills installed on the trading host with
+      `npx skills add https://github.com/weex-labs/weex-agent-skills --all`:
+      `weex-trader-skill`, `weex-analysis-skill`, `weex-monitor-skill`, `weex-partner-skill`. See
+      `docs/TRADER-SKILL.md`.
+- [ ] The 11 step API checklist passed on sim: query balance, set leverage, read price, place an
+      order, close it, minimum 10 USDT trade size, and the rest. Results written into
+      `docs/RESULTS.md`.
+- [ ] The WEEX AI agent partner Google Form filed. Its URL is still UNKNOWN, see above.
+- [ ] The live Vercel URL pasted wherever the form asks for a demo link.
+- [ ] The video URL recorded and pasted in place of `<ADD_VIDEO_URL>` in README.md.
+- [ ] `ANTHROPIC_API_KEY` set on the deploy before the recording, so the console header reads
+      "Anthropic API" and not "offline stub".
+- [ ] `npm run demo:reset` run against the live URL immediately before the take.
+
+## 9. Known gaps
 
 Written as gaps, on purpose.
 
+- **No live account results yet, and none are invented.** `docs/RESULTS.md` is the empty container
+  they go into: per-round equity, drawdown, closed trades and refusals, per-thesis realized PnL over
+  the five rounds, and the sim run of the 11 step API checklist. Every cell in it reads `to fill`.
+  The ranking is decided by live trading performance, and this repo is the agent that produces it
+  plus the evidence trail behind it, **not a substitute for it**. The only concrete percentage
+  anywhere in these documents, `-2.14% over 7 closed trades`, is a **seed** value in
+  `lib/data/seed.json` that drives the refusal step of the demo. It is not an account number.
 - **No persisted ledger.** One JSON round blob over `lib/data/seed.json` is the whole store. A reset
   puts every closed position back and the ledger back to its seed values.
 - **No attribution job on a timer.** The bulk WEEX path exists but the field names on
