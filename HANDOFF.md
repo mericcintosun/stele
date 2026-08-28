@@ -1333,3 +1333,213 @@ parallel and item 5 is the long pole.
    one is `fabricating AI logs` under the WEEX rules and is disqualifying.
 9. **Code freeze after the recording.** Nothing lands after that, or the recording stops matching the
    deploy.
+
+---
+
+## 8. Phase 7: second jury pass
+
+**Goal.** The second panel scored 4.3 with `wouldAdvance: false` on all three seats, and its rank 1
+item was not a feature at all: the deploy is up and answering 200 at `https://stele-gules.vercel.app`
+while `README.md:12` still told a judge to clone instead. This phase makes the shipped package match
+the shipped deploy, and moves the seed-data caveat from the README onto the two screens a judge
+actually reads.
+
+**Status.** Slices 0 through 4 all landed. Nothing was cut. Unverified: every item that needs a
+command (`npm install`, `npm run build`, `npm test`, the redeploy, and confirming the origin really
+is `stele-gules.vercel.app`). This agent had Write, Edit, Read, Glob and Grep only.
+
+**After this phase DEMO.md step 1 works from the live URL rather than from a clone.** Steps 2 through
+6 were not touched and `lib/data/seed.json` was not touched, so every console panel is still
+non-empty and step 4 still produces the red REFUSED row.
+
+### Slice 0: the regression sweep
+
+Phase 6 made exactly one code edit, `lib/config.ts:101`, `"cmt_linkusdt"` replaced with
+`"cmt_ltcusdt"`. Grepped the whole tree for `cmt_linkusdt`, `AllowedSymbol` and `isAllowedSymbol`
+before any other work.
+
+**No regression found. `cmt_linkusdt` has zero occurrences outside this file's historical phase logs,
+and `AllowedSymbol` has no consumer:** it is declared at `lib/config.ts:104` and `isAllowedSymbol` at
+`lib/config.ts:106`, and nothing in `app/`, `components/`, `lib/`, `scripts/` or `tests/` imports
+either. No seed symbol, no component and no test references the removed string.
+
+### The round-2 ledger
+
+| Finding | Kind | Verdict | Where |
+| --- | --- | --- | --- |
+| *"README'nin ilk ekranında canlı URL yerine placeholder token duruyor, oysa deploy ayakta ve 200 dönüyor"* | **REPEAT**, panel rank 1 | **applied** | `README.md:12` is now `https://stele-gules.vercel.app/console`. `README.md:222` artifacts row, `SUBMISSION.md:162` links table, `docs/VIDEO.md:34` recording plan. `<ADD_LIVE_URL>` now appears nowhere outside this file's historical logs. Phase 6 marked this `unverifiable` because no deploy was recorded then. |
+| *"Aynı placeholder, jüriyi çalışan konsol yerine clone almaya yönlendiriyor"* | **REPEAT** | **applied** | `README.md:18-20` no longer says "both of the first two are placeholder tokens": it names the console as live and only the video as a token. `README.md:29-32` makes path A the primary route with the real URL and reframes path B, the clone, as the offline fallback. `SUBMISSION.md:166-171` and `:243` moved from "two remaining tokens" to one. |
+| `SITE_URL` at `lib/config.ts:79` read `https://stele.vercel.app`, the wrong origin, and no find and replace reaches it | **NEW** | **applied** | `lib/config.ts:79` is now `"https://stele-gules.vercel.app"`. It is the only line in that file this phase touched. It feeds `metadataBase` in `app/layout.tsx`, so the og:image was resolving against an origin that is not ours. |
+| The `STELE_BASE_URL` example comment in `scripts/demo-reset.mjs:12` carried the same wrong origin | **NEW** | **applied** | `scripts/demo-reset.mjs:12`, comment only, no executable line changed. Found by the same grep as the finding above. |
+| *"Konsoldaki performans sayılarının seed verisi olduğu ekranda yazmıyor, uyarı yalnız README'de"*, evidenced by `SITE_MAP /console: "Open Interest Breakout TH-OI-BREAK ACTIVE +3.21% +38.60 USDT 7/11 closed 1.25x"` against the README's "none of it is an account result" | **REPEAT** | **applied** | New `ledgerSource()` exported from `lib/store/index.ts`, returning `"weex"` only when `ADAPTER_MODE === "real" && hasCredentials()`, mirroring `getStore()` exactly. Rendered on `app/console/page.tsx` directly under the header block and on `app/evidence/page.tsx` with the summary strip. On seeded data both read `Ledger source: seeded fixture, lib/data/seed.json. Every PnL figure below is demo data, not a WEEX account result.` Phase 6 fixed the README wording only, which is why the panel raised it again. |
+| *"Kuralın zorunlu tuttuğu resmi Trader Skill entegrasyonu kodda görünmüyor, yalnız bir doküman olarak duruyor"*, the visibility half | **REPEAT**, two seats across both rounds | **applied** | `app/evidence/page.tsx`, next to the ledger-source line: the four official skill names copied byte identical from `docs/TRADER-SKILL.md:33-36`, the `npx skills add https://github.com/weex-labs/weex-agent-skills --all` command, and the statement that they are deliberately not vendored here. **The install is not claimed as done**; the line points at `DELIVERY.md`, where it is still an unchecked human item. |
+| Same item, a code path in this repo that calls the official skills | **REPEAT** | **declined: jüri önerisi, kapsam dışı: yeni özellik** | Vendoring the skills or shelling out to them is a new feature and is outside the phase fence. `docs/TRADER-SKILL.md` states the requirement, the install command and the skill-to-module map as an equivalence rather than a substitution, and now `/evidence` says the same thing where a judge lands. |
+| The account-level equity clamp in code | **REPEAT** | **declined: jüri önerisi, kapsam dışı: yeni özellik** | Declined in round 1 for the same reason. `README.md` `## Risk controls` still says plainly that there is no account-level equity clamp in code and that the limit today is the sum of the per-thesis quotas. |
+| Round rollover, a persisted ledger, a queue retry timer, an attribution poller, SSE | **REPEAT** | **declined: jüri önerisi, kapsam dışı: yeni özellik** | All five were declined in round 1 and each is a feature, not a fix. They stay named as gaps in `SUBMISSION.md` block 9 and in the README's "What we would build next". |
+| The video URL | **REPEAT** | **unverifiable** | No take exists and this agent cannot record one. `<ADD_VIDEO_URL>` is byte identical in `README.md:14` and `SUBMISSION.md:164`. Inventing a URL here would be the fabrication the panel is watching for. |
+| Account results for the return-performance weight | **REPEAT** | **unverifiable** | `docs/RESULTS.md` is still entirely `to fill`. It needs a funded, allowlisted WEEX account and five weekly rounds. No agent writes a number into that file. |
+| The seven screenshots | **REPEAT** | **unverifiable** | `docs/step-1.png` through `docs/step-6.png` and `docs/step-phone.png` are referenced from `README.md` and do not exist. They are captured by hand from the live URL, which is now available for the first time. |
+| The Trader Skill install itself | **REPEAT** | **unverifiable** | It happens on the operator's trading host and cannot be verified by reading this repo. Checklist item 5 below. |
+
+### Findings dropped up front, with the reason
+
+Each of these was declined in round 1, each is a feature rather than a fix, and each is out of the
+Phase 7 fence. They are listed here so they are not silently absent from the round-2 ledger:
+
+- **The account-level equity clamp in code.** New risk mechanism, new state, new failure mode the
+  night before a freeze.
+- **Round rollover.** Needs a round identity and a reset policy across five weekly rounds.
+- **A persisted ledger separate from the round blob.** The Phase 3 decision record already argues the
+  blob against Postgres and that debate is settled.
+- **A queue retry timer.** `POST /api/queue` replays by hand today and the replay order is the part
+  that makes the trail evidence.
+- **An attribution poller.** Needs a daemon this repo deliberately does not host.
+- **SSE on `/console`.** Three phases have taken the same no-polling default on purpose.
+
+### Verdict per Phase 6 fix
+
+One line per row of the Phase 6 decisions table, in that table's order:
+
+| Phase 6 fix | Verdict |
+| --- | --- |
+| Stack declaration corrected, `SUBMISSION.md` block 2 and `README.md` `## Tech stack` | **held.** Not raised again, both files unchanged this phase. |
+| `docs/TRADER-SKILL.md` created and linked from three files | **held**, and extended: the requirement is now on `/evidence` as well, because a document alone did not answer the finding. |
+| `docs/RESULTS.md` created as an empty container | **held.** Every cell still reads `to fill`. |
+| The `-2.14%` seed figure labelled as seeded in `README.md:44` | **re-done.** The README wording held, but the panel raised the same item against the screen, so the caveat now renders on `/console` and `/evidence`. |
+| `README.md` `## Risk controls`, six clamps with their `lib/valve.ts` lines | **held.** Not raised again. |
+| The account-level equity clamp, declined | **held as declined.** Same verdict, same reason. |
+| `cmt_linkusdt` replaced with `cmt_ltcusdt` at `lib/config.ts:101` | **held.** Slice 0 grepped for the removed string, `AllowedSymbol` and `isAllowedSymbol`: zero occurrences of the first, no consumer for the other two. |
+| The clone path added to "Try it in 60 seconds" | **re-done.** The clone path survives as path B, but it is the offline fallback now rather than the recommended route, because sending a judge to a clone past a working deploy was the panel's rank 1 complaint. |
+| The repository URL filled in | **held.** `https://github.com/mericcintosun/stele` unchanged in both files. |
+| The live URL, `unverifiable` in round 1 | **re-done.** The deploy is recorded, so the token is gone from every document and `SITE_URL` was corrected with it. |
+| Round rollover and the other four features, declined | **held as declined.** |
+
+### Failed attempts
+
+None. One thing was caught by reading rather than by a build: the phase brief listed `DELIVERY.md`
+among the files holding `<ADD_LIVE_URL>`. It does not, and never did. The token was in `README.md`,
+`SUBMISSION.md` and `docs/VIDEO.md` only, which the grep at the top of slice 1 showed before any edit
+was made. `DELIVERY.md` was left untouched.
+
+### Files changed
+
+New: none. No new route, no new component module, no new dependency, no new environment variable.
+
+Edited: `README.md` (`:12` live console link, `:18-20` the placeholder sentence, `:29-32` path A and
+path B, `:222` the artifacts row), `SUBMISSION.md` (block 7 links table and the paragraph under it,
+block 9 known-gaps line), `docs/VIDEO.md` (the recording plan line and the "Links to replace"
+section), `lib/config.ts` (`SITE_URL` only), `scripts/demo-reset.mjs` (one comment line),
+`lib/store/index.ts` (`ledgerSource()` added), `app/console/page.tsx` (import plus one rendered
+line), `app/evidence/page.tsx` (import plus two rendered lines), `HANDOFF.md` (this section),
+`.farm-commits.json`.
+
+Not touched, deliberately: `lib/data/seed.json`, `lib/valve.ts`, `lib/weex.ts`, `lib/agent.ts`,
+`lib/attribution.ts`, `tests/`, `DEMO.md`, `DELIVERY.md`, `docs/RESULTS.md`, `docs/TRADER-SKILL.md`,
+`package.json`, `.env.example`, `.gitignore`, `next.config.ts`.
+
+Still tombstoned and still needing `git rm`: `lib/data.ts`, `lib/adapter.ts`.
+
+### Commands run
+
+**None, this phase is file only.**
+
+### Open questions
+
+- **Is the deployed origin really `stele-gules.vercel.app`?** It was given to this phase as recorded
+  fact and no file in this repo can confirm it. If it is wrong, the same one-token correction is
+  needed in `README.md` (three places), `SUBMISSION.md` (two places), `docs/VIDEO.md` (two places),
+  `scripts/demo-reset.mjs:12` and `lib/config.ts:79`.
+- **Does the live deploy have `KV_REST_API_URL` and `KV_REST_API_TOKEN` set?** Without them the round
+  survives a refresh but not a cold lambda, and step 5 of DEMO.md is a hard refresh in front of a
+  judge. `storeMode()` prints `kv` or `memory` in the console header, so the answer is on screen.
+- Carried forward and unchanged from Phase 6: whether the four skill names and the install command
+  are current, whether the 11 step checklist wording is the official one, whether `cmt_ltcusdt` is
+  definitely in the competition universe, whose name goes on the `LICENSE` copyright line, and
+  whether the `New user pool` row is claimable.
+
+### Acceptance gate, checked by reading files
+
+Met:
+
+- **Every round-2 finding is applied with a file named, declined with `jüri önerisi, kapsam dışı:
+  yeni özellik`, or marked unverifiable with the missing evidence named.** The ledger table above.
+  None dropped silently; the six dropped-up-front items have their own section.
+- **The regression sweep ran before slice 1 and its result is written down.** Slice 0 above.
+- **`<ADD_LIVE_URL>` appears nowhere outside this file's historical phase logs.** Re-grepped after
+  the edits: the only hits are in the Phase 5, Phase 6 and Phase 7 sections of `HANDOFF.md`.
+- **`lib/config.ts` `SITE_URL` is `"https://stele-gules.vercel.app"`**, `lib/config.ts:79`.
+- **`<ADD_VIDEO_URL>` is still present and still described as a placeholder**, `README.md:14`,
+  `README.md:19`, `SUBMISSION.md:164`, `SUBMISSION.md:168` and `docs/VIDEO.md`. No video URL was
+  invented.
+- **`ledgerSource` is exported from `lib/store/index.ts`** and imported from `@/lib/store` by both
+  `app/console/page.tsx:14` and `app/evidence/page.tsx:19`, and both render its result. It uses only
+  `ADAPTER_MODE` and `hasCredentials()`, which that module already imported.
+- **Both pages are still server components.** No `"use client"` and no `useState` was added to
+  either. The added markup is a plain `<p>` in each.
+- **The string "seed" appears in the rendered JSX of `app/console/page.tsx`**, in
+  `lib/data/seed.json` and `seeded fixture`.
+- **The four skill names on `/evidence` are byte identical** to `docs/TRADER-SKILL.md:33-36`. No
+  `skills/` directory was created and `package.json` is untouched.
+- **No new route file, no new dependency, no new environment variable, no new component module.**
+- **`DEMO.md` still names route files that exist**, `app/console/page.tsx` and
+  `app/evidence/page.tsx`, and `lib/data/seed.json` is untouched, so the demo is still non-empty.
+- **`docs/RESULTS.md` still reads `to fill` in every results cell.** Not opened for writing this
+  phase.
+- **Mobile.** Both added lines are `font-mono text-[11px] break-words text-mut`, no fixed width, so
+  they wrap at 360px. The `/evidence` pair sits in a `border-t` block inside the existing summary
+  card rather than in a new strip.
+- **No em dash, en dash or double hyphen used as a dash** in anything written this phase. The one
+  `--all` is a CLI flag copied byte identical from `docs/TRADER-SKILL.md`.
+
+Unmet, with the evidence that is missing:
+
+- **Every command is unverified.** No `npm install`, no `npm run build`, no `npm test`, no redeploy.
+  The agent has no shell. Three files under `app/` and `lib/` changed, so the build is a real gate
+  this time rather than a formality: `ledgerSource` is a new export consumed by two server
+  components.
+- **The deployed origin is unconfirmed from inside this repo.** See open questions. Everything in
+  slice 1 rests on the one fact this agent was handed and cannot check.
+- **The video URL is still a placeholder.** No take exists.
+- **No account results exist.** `docs/RESULTS.md` is entirely `to fill`. This is still the largest
+  scored gap and it closes with a funded allowlisted account and five weekly rounds, not with a file.
+- **The seven screenshots do not exist.** `docs/` holds `VIDEO.md`, `TRADER-SKILL.md` and
+  `RESULTS.md` only.
+- **The Trader Skill install is not verified as done**, and the page says so rather than claiming it.
+- **The prize amounts are still unverified**, HTTP 405 reason, unchanged.
+- **The `LICENSE` copyright holder is still generic.**
+
+### Manual checklist for the human, carried forward
+
+Item 1 has shrunk. Items 2 through 9 are unchanged from the Phase 6 list.
+
+1. **Confirm the deployed origin is `https://stele-gules.vercel.app`.** The URL is already written
+   into `README.md`, `SUBMISSION.md`, `docs/VIDEO.md`, `scripts/demo-reset.mjs` and `SITE_URL` at
+   `lib/config.ts:79`. If the origin is different, all five need the same one-token correction, and
+   `lib/config.ts:79` is the one no find and replace over the documents will reach.
+2. **Capture `docs/step-1.png` through `docs/step-6.png` and `docs/step-phone.png`** from the live
+   URL, one per DEMO.md step plus `/console` at 360px width.
+3. **Record the 90 second take** against the live URL with `ANTHROPIC_API_KEY` set, so the console
+   header reads "Anthropic API" and not "offline stub". Shot list and timing in `docs/VIDEO.md`.
+   Click **Reset round** before every take.
+4. **Upload the video, then replace `<ADD_VIDEO_URL>`** in `README.md` and `SUBMISSION.md`, one find
+   and replace for both.
+5. **Install the four WEEX skills on the trading host**:
+   `npx skills add https://github.com/weex-labs/weex-agent-skills --all`. `docs/TRADER-SKILL.md` has
+   the names and the 404 pitfall. This is a competition requirement, not a nicety.
+6. **File the WEEX AI agent partner Google Form**, pasting from `SUBMISSION.md`. Its URL is still
+   UNKNOWN and its closing date is unpublished, so treat it as possibly earlier than
+   2026-09-02 15:59 UTC.
+7. **Confirm the WEEX allowlist** for the trading UID and the server's static IP. Manual approval by
+   WEEX staff, no published turnaround.
+8. **Fill `docs/RESULTS.md` from the sim run**, then from each round as it closes. Every cell reads
+   `to fill` today. **No agent writes a number into that file.** A blank cell is honest; a guessed
+   one is `fabricating AI logs` under the WEEX rules and is disqualifying.
+9. **Code freeze after the recording.** Nothing lands after that, or the recording stops matching the
+   deploy.
+
+### Next best step
+
+Redeploy, then open `https://stele-gules.vercel.app/console` and read the second line under the
+header: it has to say `Ledger source: seeded fixture`. Then walk DEMO.md step 4 once and confirm the
+red REFUSED row is still there. After that the queue is items 2 through 8 above, and item 8 is the
+only one that closes the return-performance gap the panel has now named twice.
