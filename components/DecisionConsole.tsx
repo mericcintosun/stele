@@ -20,6 +20,9 @@ import {
 } from "@/components/ConsoleStates";
 import DecisionLog from "@/components/DecisionLog";
 import ThesisLedger from "@/components/ThesisLedger";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SteleError, SteleErrorCode } from "@/lib/errors";
 import { pct, stamp, usdt } from "@/lib/format";
 import type { ApiResponse, Decision, Position, RoundView, Signal, Thesis } from "@/lib/types";
@@ -58,10 +61,11 @@ const ERROR_COPY: Record<SteleErrorCode, string> = {
   internal: "The decision loop failed before it reached the exchange.",
 };
 
-const VERDICT_STYLE: Record<Decision["verdict"], string> = {
-  approved: "border-acc/50 bg-acc/10 text-acc",
-  reduced: "border-warn/50 bg-warn/10 text-warn",
-  rejected: "border-bad/50 bg-bad/10 text-bad",
+/** The verdict pill, drawn by components/ui/badge.tsx. Same three colors. */
+const VERDICT_VARIANT: Record<Decision["verdict"], BadgeVariant> = {
+  approved: "accent",
+  reduced: "warn",
+  rejected: "bad",
 };
 
 const VERDICT_LABEL: Record<Decision["verdict"], string> = {
@@ -228,7 +232,10 @@ export default function DecisionConsole({ initial }: Props) {
   return (
     <div className="space-y-4">
       {/* Account strip */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-line bg-panel px-4 py-3 font-mono text-xs">
+      <Card
+        as="div"
+        className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 font-mono text-xs"
+      >
         <span className="text-mut">
           UID <span className="text-ink">{round.account.uid}</span>
         </span>
@@ -259,20 +266,15 @@ export default function DecisionConsole({ initial }: Props) {
           Model path{" "}
           <span className="text-ink">{modelPath ? SOURCE_LABEL[modelPath] : "idle"}</span>
         </span>
-        <button
-          type="button"
-          onClick={reset}
-          disabled={pending !== null}
-          className="inline-flex min-h-11 items-center rounded border border-line px-3 text-[11px] text-mut transition-colors hover:border-acc/50 hover:text-acc disabled:opacity-40"
-        >
+        <Button variant="outline" size="sm" onClick={reset} disabled={pending !== null}>
           Reset round
-        </button>
-      </div>
+        </Button>
+      </Card>
 
       {/* Market strip */}
       <div className="grid gap-3 sm:grid-cols-3">
         {round.markets.map((m) => (
-          <div key={m.symbol} className="rounded-xl border border-line bg-panel px-4 py-3">
+          <Card as="div" key={m.symbol} className="px-4 py-3">
             <p className="font-mono text-[11px] text-mut">{m.symbol}</p>
             <p className="mt-1 font-mono text-xl tabular-nums">{price(m.lastPrice)}</p>
             <div className="mt-1 flex flex-wrap gap-x-3 font-mono text-[11px]">
@@ -284,7 +286,7 @@ export default function DecisionConsole({ initial }: Props) {
               </span>
               <span className="text-mut">OI {pct(m.oiChange1hPct, 1)}</span>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 
@@ -293,11 +295,11 @@ export default function DecisionConsole({ initial }: Props) {
 
         {/* Center: signal queue and the decision stream */}
         <div className="space-y-4">
-          <section className="rounded-xl border border-line bg-panel">
-            <header className="flex items-baseline justify-between border-b border-line px-4 py-3">
-              <h2 className="text-sm font-semibold tracking-tight">Signal queue</h2>
+          <Card>
+            <CardHeader>
+              <CardTitle>Signal queue</CardTitle>
               <span className="text-[11px] text-mut">{queue.length} waiting</span>
-            </header>
+            </CardHeader>
 
             {queue.length === 0 ? (
               <SignalQueueEmptyState onReset={reset} busy={pending !== null} />
@@ -318,14 +320,14 @@ export default function DecisionConsole({ initial }: Props) {
                       </div>
                       <p className="mt-1.5 text-sm leading-relaxed">{s.headline}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-3">
-                        <button
-                          type="button"
+                        <Button
+                          variant="primary"
+                          size="sm"
                           onClick={() => evaluate(s)}
                           disabled={pending !== null}
-                          className="inline-flex min-h-11 items-center rounded-lg bg-acc px-4 text-xs font-semibold text-bg transition-opacity hover:opacity-90 disabled:opacity-40"
                         >
                           {pending === s.id ? "Running the loop…" : "Run decision loop"}
-                        </button>
+                        </Button>
                         {valve ? (
                           <span className="font-mono text-[11px] text-mut">
                             valve {valve.multiplier.toFixed(2)}x, {valve.state}
@@ -337,32 +339,35 @@ export default function DecisionConsole({ initial }: Props) {
                 })}
               </ul>
             )}
-          </section>
+          </Card>
 
           {error ? (
             <ConsoleErrorState message={error} onRetry={refresh} busy={reloading} />
           ) : null}
 
-          <section className="rounded-xl border border-line bg-panel">
-            <header className="border-b border-line px-4 py-3">
-              <h2 className="text-sm font-semibold tracking-tight">Decisions this round</h2>
-            </header>
+          <Card>
+            <CardHeader>
+              <CardTitle>Decisions this round</CardTitle>
+            </CardHeader>
 
             {round.decisions.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-mut">
-                Nothing yet. Run the SOL signal first: its thesis ledger is under water, so the
-                valve refuses the agent&apos;s own order and writes the refusal to WEEX.
-              </p>
+              <div className="space-y-2 px-4 py-6">
+                <p className="text-sm leading-relaxed text-mut">
+                  Nothing yet. Run the SOL signal first: its thesis ledger is under water, so the
+                  valve refuses the agent&apos;s own order and writes the refusal to WEEX.
+                </p>
+                <p className="font-mono text-[11px] text-mut">
+                  POST /api/decide, then the verdict pill lands here
+                </p>
+              </div>
             ) : (
               <ul className="divide-y divide-line">
                 {round.decisions.map((d, i) => (
                   <li key={`${d.signalId}-${i}`} className="space-y-2 px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded border px-2 py-0.5 font-mono text-[10px] font-bold tracking-wide ${VERDICT_STYLE[d.verdict]}`}
-                      >
+                      <Badge variant={VERDICT_VARIANT[d.verdict]}>
                         {VERDICT_LABEL[d.verdict]}
-                      </span>
+                      </Badge>
                       <span className="font-mono text-[11px] text-mut">
                         {d.symbol} {d.side} · {d.thesisId} · valve {d.sizeMultiplier.toFixed(2)}x
                       </span>
@@ -411,23 +416,28 @@ export default function DecisionConsole({ initial }: Props) {
                 ))}
               </ul>
             )}
-          </section>
+          </Card>
 
-          <section className="rounded-xl border border-line bg-panel">
-            <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-3">
-              <h2 className="text-sm font-semibold tracking-tight">Open positions</h2>
+          <Card>
+            <CardHeader>
+              <CardTitle>Open positions</CardTitle>
               <span className="text-[11px] text-mut">
                 every entry carries exchange-side TP/SL. Closing one writes its result back to its
                 thesis.
               </span>
-            </header>
+            </CardHeader>
 
             {round.positions.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-mut">
-                Nothing open. Every position this round has been closed and its result written back
-                to the thesis that opened it. Run a signal above to open another one, or press Reset
-                round to start the sequence again.
-              </p>
+              <div className="space-y-2 px-4 py-6">
+                <p className="text-sm leading-relaxed text-mut">
+                  Nothing open. Every position this round has been closed and its result written
+                  back to the thesis that opened it. Run a signal above to open another one, or
+                  press Reset round to start the sequence again.
+                </p>
+                <p className="font-mono text-[11px] text-mut">
+                  POST /api/attribute wrote the last close back to its thesis
+                </p>
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[48rem] text-left font-mono text-[11px]">
@@ -466,15 +476,15 @@ export default function DecisionConsole({ initial }: Props) {
                         </td>
                         <td className="px-4 py-2 text-mut">{stamp(p.openedAt)}</td>
                         <td className="px-4 py-2">
-                          <button
-                            type="button"
+                          <Button
+                            variant="danger"
+                            size="sm"
                             onClick={() => closeAtStop(p)}
                             disabled={pending !== null}
                             title={`Close ${p.id} at ${p.stopLoss.toFixed(2)} and write the result back to ${p.thesisId}`}
-                            className="inline-flex min-h-11 items-center rounded-lg border border-bad/40 px-3 text-[11px] font-semibold text-bad transition-colors hover:bg-bad/10 disabled:opacity-40"
                           >
                             {pending === p.id ? "Closing…" : "Close at stop"}
-                          </button>
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -482,7 +492,7 @@ export default function DecisionConsole({ initial }: Props) {
                 </table>
               </div>
             )}
-          </section>
+          </Card>
         </div>
 
         <DecisionLog logs={round.logs} queueDepth={round.queueDepth} />
