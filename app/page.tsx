@@ -10,6 +10,7 @@
 
 import Link from "next/link";
 import LedgerPattern from "@/components/brand/LedgerPattern";
+import HeroLedger from "@/components/brand/HeroLedger";
 import { buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardTitle } from "@/components/ui/card";
 
@@ -76,61 +77,80 @@ const COMPARISON = [
 export default function Home() {
   return (
     <div className="space-y-20 sm:space-y-24">
-      {/* Hero. One primary action, everything else demoted to a link. */}
-      <header className="relative isolate overflow-hidden rounded-2xl border border-line bg-panel/40 px-5 py-10 sm:px-8 sm:py-14">
-        <LedgerPattern className="pointer-events-none absolute inset-0 -z-10 h-full w-full text-acc" />
+      {/* Hero. İki kolon: solda iddia ve tek birincil aksiyon, sağda ürünün
+          kendisi (konsolun gerçek seed sayılarıyla ledger önizlemesi). Desen
+          yalnızca sağ yarıda ve maskeli: metnin altından çizgi geçmez. */}
+      <header className="relative isolate overflow-hidden rounded-2xl border border-line bg-panel/40 px-5 py-10 sm:px-8 sm:py-12 lg:px-12">
+        <LedgerPattern className="pointer-events-none absolute right-0 top-0 -z-10 hidden h-full w-1/2 text-acc opacity-60 [mask-image:linear-gradient(to_left,black,transparent)] lg:block" />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-acc/40 bg-acc/10 px-2.5 py-1 font-mono text-[11px] text-acc">
-            WEEX AI Wars II · AI Team
-          </span>
-          <span className="font-mono text-[11px] text-mut">5 live weekly rounds</span>
-        </div>
+        <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)] lg:gap-14">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-full border border-acc/40 bg-acc/10 px-2.5 py-1 font-mono text-[11px] text-acc">
+                WEEX AI Wars II · AI Team
+              </span>
+              <span className="font-mono text-[11px] text-mut">5 live weekly rounds</span>
+            </div>
 
-        <h1 className="type-display mt-6">Stele</h1>
-        <p className="mt-2 font-mono text-sm text-mut">/capi/v3/order/uploadAiLog</p>
+            <h1 className="type-display mt-6">
+              Every order carries <span className="text-acc">its reason.</span>
+            </h1>
 
-        <p className="type-lead measure mt-6 text-ink/90">
-          A WEEX perpetual futures agent that ties every order to a named thesis, keeps a realized
-          profit and loss ledger for each one, and cuts the capital of any thesis that is losing
-          money.
-        </p>
+            <p className="type-lead measure mt-5 text-ink/90">
+              Stele is a WEEX perpetual futures agent that ties every order to a named thesis,
+              keeps a realized PnL ledger for each one, and cuts the capital of any thesis that is
+              losing money.
+            </p>
 
-        <p className="type-body measure mt-4 text-mut">
-          Open the screen and you see one list: the reasons the agent used to open trades, and what
-          each one has made or lost so far. When the agent proposes a new trade it puts the reason
-          and that reason&apos;s history side by side. A losing reason gets a smaller order. A
-          reason that keeps losing gets no order at all. You watch what was tried, what was dropped,
-          and why, on a single screen.
-        </p>
+            <p className="type-body measure mt-4 text-mut">
+              The walk takes ninety seconds: press Run decision loop on the SOL signal and watch
+              the agent refuse its own order, then post the refusal to the exchange.
+            </p>
 
-        <p className="type-body measure mt-4 text-ink/90">
-          The walk takes ninety seconds. Open the console and press Run decision loop on the SOL
-          signal: its thesis is 2.14% under water over seven closed trades, so the agent refuses its
-          own order and posts the refusal to the exchange.
-        </p>
+            <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
+              <Link href="/console" className={buttonClass({ variant: "primary", size: "md" })}>
+                Watch the agent refuse its own order
+              </Link>
+              <Link
+                href="#loop"
+                className="inline-flex min-h-11 items-center rounded-lg px-1 text-sm text-mut transition-colors hover:text-acc focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acc"
+              >
+                How the loop works
+              </Link>
+            </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
-          <Link href="/console" className={buttonClass({ variant: "primary", size: "md" })}>
-            Watch the agent refuse its own order
-          </Link>
-          <Link
-            href="/evidence"
-            className="inline-flex min-h-11 items-center rounded-lg px-1 text-sm text-mut transition-colors hover:text-acc focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acc"
-          >
-            Read the evidence trail
-          </Link>
-          <Link
-            href="#loop"
-            className="inline-flex min-h-11 items-center rounded-lg px-1 text-sm text-mut transition-colors hover:text-acc focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acc"
-          >
-            How the loop works
-          </Link>
+            <dl className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-5 font-mono text-[11px] text-mut">
+              <div className="flex items-baseline gap-1.5">
+                <dt>rounds</dt>
+                <dd className="text-ink">5</dd>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <dt>theses</dt>
+                <dd className="text-ink">6</dd>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <dt>halt line</dt>
+                <dd className="text-bad">-2.0%</dd>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <dt>evidence</dt>
+                <dd className="text-ink">uploadAiLog</dd>
+              </div>
+            </dl>
+          </div>
+
+          <HeroLedger />
         </div>
       </header>
 
       {/* Section 1: the failure mode and the mechanism */}
-      <section className="grid gap-6 md:grid-cols-2">
+      <section className="space-y-6">
+        <p className="type-body measure text-mut">
+          Open the screen and you see one list: the reasons the agent used to open trades, and what
+          each one has made or lost so far. A losing reason gets a smaller order. A reason that
+          keeps losing gets no order at all.
+        </p>
+        <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardBody pad="lg" className="space-y-3">
             <CardTitle size="md">The failure mode</CardTitle>
@@ -167,6 +187,7 @@ export default function Home() {
             </p>
           </CardBody>
         </Card>
+        </div>
       </section>
 
       {/* Section 2: the loop. The hero's "How the loop works" link lands here. */}
