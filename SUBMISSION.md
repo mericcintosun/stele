@@ -32,8 +32,9 @@ inspectable and its AI participation provable. Not because a form asked for it.
 ## 2. Tech stack, authoritative
 
 **This block supersedes every earlier stack listing, including the one in the hackathon idea record.**
-If a description elsewhere says Python, FastAPI, SQLite or a systemd timer, that listing is
-superseded by this repo: there is no Python file, no database and no timer in it. The round store is
+Where an earlier description named a different backend language, a relational database or a scheduled
+timer unit, that listing is superseded by the table below: this repo is TypeScript end to end, there
+is no database file in it and nothing in it runs on a schedule. The round store is
 one JSON snapshot owned by `lib/store/round.ts`, held in a module scope singleton by default and in
 an optional Upstash compatible Redis REST endpoint when `KV_REST_API_URL` and `KV_REST_API_TOKEN` are
 set. Nothing else persists anything.
