@@ -941,3 +941,190 @@ After that, in order: set `KV_REST_API_URL` and `KV_REST_API_TOKEN` and confirm 
 `store: falling back to memory` line in the Vercel logs (still open from Phase 3), verify
 `/capi/v3/position/history` field names against the live doc, and submit the UID plus static IP to
 the WEEX allowlist if that has still not been done. `DELIVERY.md` is the checklist for the last one.
+
+---
+
+## 6. Phase 5: submission package
+
+**Goal.** Zero new features. Package what exists so that the three destinations that actually matter
+can be served from copy-paste: the WEEX AI agent partner Google Form, the AI model token allocation
+(awarded on proof of real model usage), and the uploadAiLog evidence trail that prevents
+disqualification. There is no judging form for this hackathon and the documents now say so.
+
+**Status.** All five slices landed. Nothing was cut. Slice 1 was already satisfied by Phase 4 and was
+carried forward rather than rewritten, see the divergence table. Unverified: every item that needs a
+command (`npm install`, `npm run build`, `npm test`, the Vercel deploy, the screenshots, the
+recording). The Phase 5 agent had Write, Edit, Read, Glob and Grep only and could run none of them.
+
+### The brief was written against a stale picture of the repo, for the third time
+
+Recorded so each divergence is deliberate rather than a miss. The brief's own rule was that an
+existing `DEMO.md` or `DELIVERY.md` wins over anything it says, and both exist.
+
+| Brief asked for | What actually happened |
+| --- | --- |
+| create `DEMO.md` with exactly five numbered steps | `DEMO.md` has existed since Phase 1 and has had **six** steps since Phase 4. It wins by the brief's own rule and was **not edited this phase**. Every downstream artifact was built against six steps, not five. |
+| record in `SUBMISSION.md` that no `DELIVERY.md` exists, and do not invent opt-in lines | `DELIVERY.md` exists, written in Phase 4, with four headings byte identical to the README track cells. `SUBMISSION.md` block 7 says so plainly and points at it, then carries the Google Form and the allowlist requirement as the two separate submissions. |
+| document `npm run seed` as a placeholder and say there is no `demo:reset` script | both false. `npm run seed` validates `lib/data/seed.json` invariants and writes `public/seed-manifest.json`; `npm run demo:reset` has existed since Phase 3 and posts to `/api/reset`. README documents what they actually do, alongside the **Reset round** button. Writing the brief's version would have been a false statement about a script a judge can run. |
+| mermaid nodes naming `app/page.tsx` and `lib/data.ts` | `app/page.tsx` is the landing page; the console has been `app/console/page.tsx` since Phase 1. `lib/data.ts` has been a tombstone since Phase 1, so the diagram names `lib/data/seed.json`. Two nodes the brief did not list were added because the demo path goes through them: `lib/store/round.ts` and `lib/evidence.ts` with `app/evidence/page.tsx`. No node is invented. |
+| VIDEO.md shot 2 on `SIG-9115` / `TH-OI-BREAK` | `DEMO.md` step 2 is `SIG-9107` on `TH-TREND-PB`. DEMO.md wins, so shot 2 follows it. `SIG-9115` is a real seeded signal and still runs, it is just not the step the file specifies. |
+| five screenshots, `docs/step-1.png` to `docs/step-5.png` | six, plus the phone shot, one per DEMO.md step. |
+| the four track rows with prizes | kept byte identical to the brief, which matches the strings Phase 4 already had in the README. An English gloss was added in parentheses for the two Turkish strings, and the HTTP 405 note sits directly under the table. |
+
+### Decisions
+
+- **`https://stele.vercel.app` was replaced with `<ADD_LIVE_URL>` in every human-facing document.**
+  Nothing in this repo or in this handoff records a verified deploy. Phase 4's own next-step section
+  opens with "Deploy, then walk DEMO.md on the live URL", which is the opposite of a confirmation.
+  Presenting an unverified URL as live on the first screen of the README is the single easiest way to
+  lose a judge, so the token went in instead.
+- **`lib/config.ts:79` was left alone.** It holds `SITE_URL = "https://stele.vercel.app"` for the
+  `og:image` and `metadataBase`. It is code, it is outside this phase's file surface, and touching it
+  risks the build for a documentation concern. **It is not a placeholder token and a find and replace
+  will not reach it**, so if the deployed URL differs it needs a hand edit. This is written into
+  `docs/VIDEO.md` and into the checklist below.
+- **A third token, `<ADD_REPO_URL>`, was added in `SUBMISSION.md` only.** The Google Form asks for a
+  repository link and the agent has no git remote to read. It is deliberately not in `README.md`: a
+  README that links to itself reads as broken.
+- **The `LICENSE` copyright line reads "Stele contributors".** The git author name is available but a
+  legal name is not, and inventing one into a license file is worse than a generic holder. One word
+  to change if the human wants their own name there. Listed under open questions.
+- **`SUBMISSION.md` leads with the reality note rather than with the title.** A reader who starts
+  pasting from block 2 without knowing that WEEX requires no project submission will spend their time
+  on the wrong thing. The ordering is the message.
+- **The mocked list in `SUBMISSION.md` block 4 is complete rather than tactful.** It names
+  `lib/data/seed.json` as the whole persistence layer, both `if (!hasCredentials())` branches, the
+  missing attribution timer and the missing queue retry. The compliance story this project tells is
+  about producing true evidence; a submission document that shades its own gaps undercuts it.
+
+### Failed attempts
+
+None. Two things were caught by reading rather than by a build:
+
+- The brief's instruction to state that `DEMO.md` and `DELIVERY.md` do not exist would have put two
+  false statements into `SUBMISSION.md` about files sitting next to it in the repo. Caught by the
+  Glob in the context-loading step, before anything was written.
+- The "Links to replace" section of `docs/VIDEO.md` originally listed the placeholder tokens in a
+  sentence that would have read as nonsense **after** the find and replace it describes. Rewritten so
+  the replaced version still reads correctly.
+
+### Files changed
+
+New: `LICENSE`, `SUBMISSION.md`, `docs/VIDEO.md`, `.farm-commits.json`.
+
+Edited: `README.md` (rewritten), `HANDOFF.md` (this section).
+
+Not touched, deliberately: `DEMO.md` and `DELIVERY.md` (they win over the brief and are carried
+forward verbatim), `.env.example` (already complete, see the gate below), `.gitignore` (already
+correct), `package.json`, and every file under `lib/`, `app/` and `components/`. No dependency was
+added, no route file, no component, no environment variable.
+
+Still tombstoned and still needing `git rm`: `lib/data.ts`, `lib/adapter.ts`.
+
+### Commands run
+
+**None, this phase is file only.** The agent has no shell. `npm install`, `npm run build` and
+`npm test` are the runner's job.
+
+### Open questions
+
+- **What is the real deployed URL?** If it is `https://stele.vercel.app` then `lib/config.ts:79` is
+  already correct and only the three documents need the token replaced. If it is anything else, that
+  constant needs a hand edit too or every link preview ships a broken `og:image`.
+- **Whose name goes on the `LICENSE` copyright line?** It reads "Stele contributors" rather than a
+  guessed legal name.
+- **What is the repository URL?** `<ADD_REPO_URL>` in `SUBMISSION.md` block 6 is waiting on it.
+- **Is the `New user pool` row even claimable?** `DELIVERY.md` already flags that it needs a new WEEX
+  UID through KYC, and that it should be dropped from the submission rather than claimed if the
+  competition account is an existing one. Nobody has confirmed which it is.
+
+### Next best step
+
+Deploy, or confirm the existing deploy, and then walk the checklist below in order. Item 1 unblocks
+items 2 and 3, and item 3 unblocks item 4. Nothing in this phase can be verified without a browser.
+
+### Acceptance gate, checked by reading files
+
+- **README first screen.** `README.md:3-7` is the two sentence problem and fix, `:8-10` the stakes
+  including the 80% to 40% Season 1 headline, `:12` the live URL token, `:17` the pointer to DEMO.md
+  step 4. No create-next-app boilerplate survives; the file was rewritten whole.
+- **Mermaid block, every node a real path.** `README.md` "Architecture". Verified to exist:
+  `app/console/page.tsx`, `components/DecisionConsole.tsx`, `components/ThesisLedger.tsx`,
+  `components/DecisionLog.tsx`, `app/api/decide/route.ts`, `lib/valve.ts`, `lib/agent.ts`,
+  `lib/weex.ts`, `lib/store/round.ts`, `lib/data/seed.json`, `app/evidence/page.tsx`,
+  `lib/evidence.ts`. The two non-file nodes are the two services the repo calls.
+- **Quickstart, 5 commands.** `install`, `dev`, `build`, `test`, plus `cp`. `seed` and `demo:reset`
+  are documented under it with what they really do. All five npm scripts exist at
+  `package.json:6-11`.
+- **Artifacts table, three rows**, with the live URL row and the `<ADD_VIDEO_URL>` row. No explorer
+  or contract row: there is no `contracts/` directory in this repo (confirmed by Glob) and the README
+  says so in the line under the table.
+- **Track table.** Four rows, the four names and the four prize strings byte identical to the brief
+  and to the Phase 4 README, with the HTTP 405 and `r.jina.ai` note directly beneath.
+- **Screenshots.** `docs/step-1.png` through `docs/step-6.png` plus `docs/step-phone.png`, one per
+  DEMO.md step, with a line saying the runner captures them from the live URL.
+- **AI use disclosure** quotes exactly the two verified sources with their URLs
+  (`.../api-doc/ai/introduction/Rule` and `.../api-doc/ai/UploadAiLog`), separates process from
+  product, names `ANTHROPIC_MODEL` default `claude-opus-5`, and names `viaClaudeCli()`, `viaMock()`
+  and the `if (!hasCredentials())` branch as the reproducible offline floors.
+- **`LICENSE` exists** at repo root and `README.md` names and links it in its last section.
+- **`SUBMISSION.md` has all eight blocks** as numbered `##` headings, the four track names byte
+  identical, the "no project submission required" reality note as block 1, and known gaps as block 8.
+- **`<ADD_VIDEO_URL>` is the identical string** in `README.md` and `SUBMISSION.md`.
+- **`docs/VIDEO.md`** has six shots each mapped to a numbered DEMO.md step with an on-screen action,
+  a spoken line and a second count; the timing contract table states problem by 0:15, receipt by
+  0:45, wow by 1:15, 90 seconds total and a 2:00 hard cap, and says why 90 rather than the generic 2
+  to 4 minutes; the recording target is the live URL. The screenshot fallback mapping and the
+  flaky-step cut rule are both there, the cut rule naming shot 3 as the cheapest cut.
+- **Environment.** Every `process.env.X` under `lib/`, `app/`, `components/` and `scripts/` was
+  grepped: `ADAPTER_MODE`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `STELE_BASE_URL`, `WEEX_API_KEY`,
+  `WEEX_API_SECRET`, `WEEX_API_PASSPHRASE`, `WEEX_API_HOST`, `WEEX_VENUE`, `ANTHROPIC_API_KEY`,
+  `ANTHROPIC_MODEL`. All eleven already have a line in `.env.example`, so **nothing was added and
+  nothing was removed.** `.gitignore:4-5` has `.env*` and `!.env.example`.
+- **Secret scan of the working tree.** Grepped for `sk-ant-`, `PASSPHRASE=` with a value,
+  `SECRET=` with a value and `API_KEY=` with eight or more characters after it, across everything
+  outside `node_modules`. **No match.** Every key line in `.env.example` is blank or a non-secret
+  default. **A full git history scan is the runner's job and was not done here.**
+- **No new dependency, route, component or code change.** `package.json` untouched. `lib/valve.ts`,
+  `lib/agent.ts`, `lib/weex.ts` and `app/api/decide/route.ts` were read but not edited. No demo-path
+  bug was found, so no exception was taken.
+
+Honest gaps, unmet items with their evidence:
+
+- **Every command is unverified.** No `npm install`, no `npm run build`, no `npm test`, no deploy.
+  The agent had no shell.
+- **The live URL is a placeholder, not a URL.** `README.md:12`, `SUBMISSION.md` block 6,
+  `docs/VIDEO.md` recording plan. This is unmet by design: no verified deploy is recorded anywhere in
+  this file, and item 1 of the checklist above closes it.
+- **The video URL is a placeholder.** `README.md:14` and `SUBMISSION.md` block 6. Closed by item 4.
+- **The repo URL is a placeholder.** `SUBMISSION.md` block 6, `<ADD_REPO_URL>`. Closed by item 4.
+- **`docs/step-1.png` through `docs/step-6.png` and `docs/step-phone.png` do not exist.** `docs/`
+  contains only `VIDEO.md`. The README references them and says plainly that they are not in the repo
+  yet. Closed by item 2.
+- **The `LICENSE` copyright holder is generic**, see open questions.
+- **The prize amounts are still unverified**, unchanged from Phase 4 and now stated as such in three
+  places: the README table note, `SUBMISSION.md` block 5 and `SUBMISSION.md` block 8.
+- **The git history secret scan was not run**, only the working tree. Runner's job.
+
+### Manual checklist for the human
+
+In order. Items 1 through 4 are gated on each other; 5 and 6 can run in parallel with them.
+
+1. **Deploy or confirm the live URL**, then replace `<ADD_LIVE_URL>` in `README.md`, `SUBMISSION.md`
+   and `docs/VIDEO.md`. If the URL is not `https://stele.vercel.app`, also hand-edit `SITE_URL` at
+   `lib/config.ts:79`, which no find and replace will reach.
+2. **Capture `docs/step-1.png` through `docs/step-6.png` and `docs/step-phone.png`** from the live
+   URL, one per DEMO.md step plus `/console` at 360px width.
+3. **Record the 90 second take** against the live URL with `ANTHROPIC_API_KEY` set, so the console
+   header reads "Anthropic API" and not "offline stub". Shot list and timing contract in
+   `docs/VIDEO.md`. Click **Reset round** before every take.
+4. **Upload the video, then replace `<ADD_VIDEO_URL>`** in `README.md` and `SUBMISSION.md` with one
+   find and replace. Fill `<ADD_REPO_URL>` in `SUBMISSION.md` at the same time.
+5. **Submit the WEEX AI agent partner Google Form**, pasting from `SUBMISSION.md`. Its URL is still
+   UNKNOWN and its closing date is unpublished, so treat it as possibly earlier than
+   2026-09-02 15:59 UTC. See `DELIVERY.md`.
+6. **Confirm the WEEX allowlist request** (trading UID plus the server's static IP) and walk the 11
+   step API checklist on sim: query balance, set leverage, read price, place an order, close it,
+   minimum 10 USDT trade size.
+7. **Code freeze once the video is recorded.** Nothing lands after that, or the recording stops
+   matching the deploy.
