@@ -1,8 +1,8 @@
 "use client";
 
-// Loop artık görsel anlatıyor: her adımın Meshy üretimi taş-devre görseli
-// panelin yarısını kaplar, metin TEK cümledir, altta mono iz satırı durur.
-// İçerik iddiaları değişmedi, yalnızca yoğunluk düştü.
+// The loop tells its story with images now: each step's Meshy stone-circuit
+// visual fills half the panel, the text is ONE sentence, and a mono trace line
+// sits under it. The content claims did not change, only the density.
 
 import Image from "next/image";
 import { useState } from "react";

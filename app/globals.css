@@ -125,7 +125,7 @@ body {
   animation: caret-blink 1.1s steps(1) infinite;
 }
 
-/* Scroll-reveal: Reveal bileşeni is-visible sınıfını ekler */
+/* Scroll-reveal: the Reveal component adds the is-visible class */
 .reveal {
   opacity: 0;
   transform: translateY(18px);

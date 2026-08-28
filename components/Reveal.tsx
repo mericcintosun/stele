@@ -1,8 +1,9 @@
 "use client";
 
-// Scroll-reveal sarmalayıcısı: görünüme girince .is-visible ekler, animasyonun
-// kendisi CSS'te (globals.css .reveal). IntersectionObserver bir kez tetikler;
-// reduced-motion kullanıcısında CSS zaten hareketi kapatır.
+// The scroll-reveal wrapper: it adds .is-visible when the block enters view,
+// and the animation itself lives in CSS (.reveal in globals.css). The
+// IntersectionObserver fires once and then disconnects; for a reduced-motion
+// reader the CSS has already switched the movement off.
 
 import { useEffect, useRef, type ReactNode } from "react";
 
