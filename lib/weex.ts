@@ -46,8 +46,15 @@ export function hasCredentials(): boolean {
   );
 }
 
-/** The sim venue is the same v3 surface behind a /sim path segment. */
-function pathFor(path: string, venue: Venue): string {
+/**
+ * The sim venue is the same v3 surface behind a /sim path segment.
+ *
+ * Exported because lib/evidence.ts has to name the exact path uploadAiLog()
+ * posted to. Reading it from here rather than rebuilding the string keeps the
+ * evidence page honest: if the venue switch ever changes, the page changes with
+ * it instead of quietly printing yesterday's endpoint.
+ */
+export function pathFor(path: string, venue: Venue): string {
   if (venue === "live") return path;
   return path.replace("/capi/v3/", "/capi/v3/sim/");
 }
