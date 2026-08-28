@@ -1,44 +1,69 @@
 "use client";
 
-// Hero ürün önizlemesi, artık canlı: fareyle hafif 3D tilt, satırlar konsola
-// tıklanabilir link, PnL barları yüklenince doluyor, HALTED satırı nabız
-// atıyor. Sayılar konsolun gerçek seed verisi; kompozisyon dekor, içerik değil.
+// The hero product preview, and it is live: a slight 3D tilt on mouse move, rows
+// that link into the console, PnL bars that fill on mount, a pulsing HALTED row.
+//
+// The numbers are not written here. Every figure is read from lib/data/seed.ts,
+// the same rows /console renders, and sized by valveFor() in lib/valve.ts, so
+// the hero cannot drift from the console when the seed changes. The composition
+// is decoration; the content is data.
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { account, thesisById } from "@/lib/data/seed";
+import { pct, usdt } from "@/lib/format";
+import { valveFor } from "@/lib/valve";
 
-const ROWS = [
-  {
-    name: "Open Interest Breakout",
-    id: "TH-OI-BREAK",
-    pct: "+3.21%",
-    usdt: "+38.60 USDT",
-    closed: "7/11 closed",
-    valve: "1.25x",
-    state: "ACTIVE" as const,
-    bar: 62,
-  },
-  {
-    name: "Basis Reversion",
-    id: "TH-BASIS-REV",
-    pct: "+1.62%",
-    usdt: "+17.90 USDT",
-    closed: "6/9 closed",
-    valve: "1.00x",
-    state: "ACTIVE" as const,
-    bar: 40,
-  },
-  {
-    name: "Crowded Short Squeeze",
-    id: "TH-SQZ-LONG",
-    pct: "-2.14%",
-    usdt: "-21.40 USDT",
-    closed: "3/7 closed",
-    valve: "0.00x",
-    state: "HALTED" as const,
-    bar: 34,
-  },
+// The three theses the hero shows, in this order: one at full size, one at base
+// size, one past the halt line. `bar` is presentational only, a fixed share of
+// the card width per row. It is not a figure from the seed and nothing reads it
+// as data.
+const SHOWN = [
+  { id: "TH-OI-BREAK", bar: 62 },
+  { id: "TH-BASIS-REV", bar: 40 },
+  { id: "TH-SQZ-LONG", bar: 34 },
 ];
+
+interface Row {
+  id: string;
+  name: string;
+  trades: number;
+  pct: string;
+  negative: boolean;
+  usdt: string;
+  closed: string;
+  valve: string;
+  state: string;
+  halted: boolean;
+  throttled: boolean;
+  bar: number;
+}
+
+// flatMap rather than map, so a thesis id that no longer exists in the seed
+// drops its row instead of rendering `undefined` into the card.
+const ROWS: Row[] = SHOWN.flatMap(({ id, bar }) => {
+  const t = thesisById(id);
+  if (!t) return [];
+  const v = valveFor(t);
+  return [
+    {
+      id: t.id,
+      name: t.name,
+      trades: t.trades,
+      pct: pct(t.realizedPnlPct),
+      negative: t.realizedPnlPct < 0,
+      usdt: `${usdt(t.realizedPnlUsdt)} USDT`,
+      closed: `${t.wins}/${t.trades} closed`,
+      valve: `${v.multiplier.toFixed(2)}x`,
+      state: v.state.toUpperCase(),
+      halted: v.state === "halted",
+      throttled: v.state === "throttled",
+      bar,
+    },
+  ];
+});
+
+const HALTED = ROWS.find((r) => r.halted);
 
 export default function HeroLedger() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -46,7 +71,8 @@ export default function HeroLedger() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Barlar 0'dan hedefe dolsun; reduced-motion'da transition zaten kapalı
+    // Let the bars fill from 0 to their target. Under reduced motion the
+    // transition is already switched off in globals.css.
     const t = setTimeout(() => setMounted(true), 150);
     return () => clearTimeout(t);
   }, []);
@@ -74,7 +100,9 @@ export default function HeroLedger() {
       >
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <span className="text-sm font-semibold">Thesis ledger</span>
-          <span className="font-mono text-[11px] text-mut">round 2 / 5</span>
+          <span className="font-mono text-[11px] text-mut">
+            round {account.round} / {account.totalRounds}
+          </span>
         </div>
 
         <ul>
@@ -82,7 +110,7 @@ export default function HeroLedger() {
             <li key={r.id} className={i > 0 ? "border-t border-line" : ""}>
               <Link
                 href="/console"
-                title="Konsolda aç"
+                title="Open in the console"
                 className="group block px-4 py-3 transition-colors hover:bg-panel2/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acc"
               >
                 <div className="flex items-baseline justify-between gap-3">
@@ -97,16 +125,18 @@ export default function HeroLedger() {
                   </div>
                   <span
                     className={`shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] ${
-                      r.state === "HALTED"
+                      r.halted
                         ? "anim-glow border-bad/40 bg-bad/10 text-bad"
-                        : "border-ok/40 bg-ok/10 text-ok"
+                        : r.throttled
+                          ? "border-warn/40 bg-warn/10 text-warn"
+                          : "border-ok/40 bg-ok/10 text-ok"
                     }`}
                   >
                     {r.state}
                   </span>
                 </div>
                 <div className="mt-2 flex items-center gap-3 font-mono text-xs">
-                  <span className={r.pct.startsWith("-") ? "text-bad" : "text-ok"}>{r.pct}</span>
+                  <span className={r.negative ? "text-bad" : "text-ok"}>{r.pct}</span>
                   <span className="text-mut">{r.usdt}</span>
                   <span className="text-mut">{r.closed}</span>
                   <span className="ml-auto text-mut">valve {r.valve}</span>
@@ -114,7 +144,7 @@ export default function HeroLedger() {
                 <div className="mt-2 h-1 overflow-hidden rounded-full bg-panel2">
                   <div
                     className={`h-full rounded-full transition-[width] duration-700 ease-out ${
-                      r.state === "HALTED" ? "bg-bad/70" : "bg-acc/80"
+                      r.halted ? "bg-bad/70" : "bg-acc/80"
                     }`}
                     style={{ width: mounted ? `${r.bar}%` : "0%", transitionDelay: `${i * 140}ms` }}
                   />
@@ -132,8 +162,20 @@ export default function HeroLedger() {
             <span className="font-mono text-[11px] text-mut">POST /capi/v3/order/uploadAiLog</span>
           </div>
           <p className="anim-caret mt-2 font-mono text-[11px] leading-relaxed text-mut">
-            TH-SQZ-LONG at -2.14% over 7 closed trades. Next matching signal gets size 0.00x:
-            <span className="text-ink"> the agent refuses its own order</span> and posts the refusal.
+            {HALTED ? (
+              <>
+                {HALTED.id} at {HALTED.pct} over {HALTED.trades} closed trades. Next matching signal
+                gets size 0.00x:
+                <span className="text-ink"> the agent refuses its own order</span> and posts the
+                refusal.
+              </>
+            ) : (
+              <>
+                Every decision is posted to this endpoint, refusals included:
+                <span className="text-ink"> the receipt is the ledger</span> that sizes the next
+                order.
+              </>
+            )}
           </p>
         </div>
       </div>
