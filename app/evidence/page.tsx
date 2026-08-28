@@ -16,7 +16,7 @@
 import Link from "next/link";
 import { evidenceSummary, EXPLANATION_LIMIT } from "@/lib/evidence";
 import { stamp } from "@/lib/format";
-import { getStore } from "@/lib/store";
+import { getStore, ledgerSource } from "@/lib/store";
 import type { AiLogRecord } from "@/lib/types";
 
 export const metadata = {
@@ -176,6 +176,22 @@ export default async function EvidencePage() {
               inside uploadAiLog(), not at the call site, so no record can be written over it.
             </p>
           </div>
+        </div>
+
+        <div className="mt-4 space-y-2 border-t border-line pt-4">
+          <p className="font-mono text-[11px] break-words text-mut">
+            {ledgerSource() === "seeded"
+              ? "Ledger source: seeded fixture, lib/data/seed.json. Every PnL figure below is demo data, not a WEEX account result."
+              : "Ledger source: WEEX closed fills, attributed to a thesis by client_oid. Every PnL figure below is an account result."}
+          </p>
+          <p className="font-mono text-[11px] break-words text-mut">
+            Trader Skill requirement: the four official WEEX skills, weex-trader-skill,
+            weex-analysis-skill, weex-monitor-skill and weex-partner-skill, install on the
+            operator&apos;s trading host with npx skills add
+            https://github.com/weex-labs/weex-agent-skills --all, and that install is tracked as an
+            open item in DELIVERY.md rather than claimed here. They are deliberately not vendored
+            into this repository, so nothing on this page is a copy of them.
+          </p>
         </div>
       </section>
 

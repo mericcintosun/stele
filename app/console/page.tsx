@@ -11,7 +11,7 @@
 
 import DecisionConsole from "@/components/DecisionConsole";
 import { storeMode } from "@/lib/config";
-import { getStore, readRound, viewOf } from "@/lib/store";
+import { getStore, ledgerSource, readRound, viewOf } from "@/lib/store";
 
 export const metadata = { title: "Decision console" };
 
@@ -30,6 +30,12 @@ export default async function ConsolePage() {
           live wiring: WEEX OpenAPI v3 + Anthropic model chain, round in {storeMode()}
         </p>
       </div>
+
+      <p className="font-mono text-[11px] break-words text-mut">
+        {ledgerSource() === "seeded"
+          ? "Ledger source: seeded fixture, lib/data/seed.json. Every PnL figure below is demo data, not a WEEX account result."
+          : "Ledger source: WEEX closed fills, attributed to a thesis by client_oid. Every PnL figure below is an account result."}
+      </p>
 
       <DecisionConsole initial={round} />
     </div>

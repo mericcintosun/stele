@@ -31,6 +31,19 @@ export function getStore(): LedgerStore {
   return seedStore;
 }
 
+/**
+ * Where the numbers on screen actually came from. Mirrors getStore() exactly,
+ * so the caveat a page prints can never disagree with the store a page reads.
+ *
+ * "seeded" means every PnL figure is a fixture out of lib/data/seed.json and
+ * not an account result. That distinction is the difference between a demo and
+ * a false claim about trading performance, so it belongs on the screen and not
+ * only in the README.
+ */
+export function ledgerSource(): "seeded" | "weex" {
+  return ADAPTER_MODE === "real" && hasCredentials() ? "weex" : "seeded";
+}
+
 export type { LedgerStore } from "./types";
 
 // The round snapshot itself. Pages and routes that need the whole state at once
