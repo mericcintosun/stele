@@ -983,7 +983,9 @@ existing `DEMO.md` or `DELIVERY.md` wins over anything it says, and both exist.
   risks the build for a documentation concern. **It is not a placeholder token and a find and replace
   will not reach it**, so if the deployed URL differs it needs a hand edit. This is written into
   `docs/VIDEO.md` and into the checklist below.
-- **A third token, `<ADD_REPO_URL>`, was added in `SUBMISSION.md` only.** The Google Form asks for a
+- **A third token, the repository URL placeholder, was added in `SUBMISSION.md` only.** *(Filled in
+  Phase 6 with `https://github.com/mericcintosun/stele`. The literal token no longer appears
+  anywhere in the repo.)* The Google Form asks for a
   repository link and the agent has no git remote to read. It is deliberately not in `README.md`: a
   README that links to itself reads as broken.
 - **The `LICENSE` copyright line reads "Stele contributors".** The git author name is available but a
@@ -1033,7 +1035,9 @@ Still tombstoned and still needing `git rm`: `lib/data.ts`, `lib/adapter.ts`.
   constant needs a hand edit too or every link preview ships a broken `og:image`.
 - **Whose name goes on the `LICENSE` copyright line?** It reads "Stele contributors" rather than a
   guessed legal name.
-- **What is the repository URL?** `<ADD_REPO_URL>` in `SUBMISSION.md` block 6 is waiting on it.
+- ~~**What is the repository URL?**~~ **Closed in Phase 6:** `https://github.com/mericcintosun/stele`,
+  recorded as a healthy public asset. Filled in `SUBMISSION.md` and added to the README artifacts
+  table.
 - **Is the `New user pool` row even claimable?** `DELIVERY.md` already flags that it needs a new WEEX
   UID through KYC, and that it should be dropped from the submission rather than claimed if the
   competition account is an existing one. Nobody has confirmed which it is.
@@ -1097,7 +1101,8 @@ Honest gaps, unmet items with their evidence:
   `docs/VIDEO.md` recording plan. This is unmet by design: no verified deploy is recorded anywhere in
   this file, and item 1 of the checklist above closes it.
 - **The video URL is a placeholder.** `README.md:14` and `SUBMISSION.md` block 6. Closed by item 4.
-- **The repo URL is a placeholder.** `SUBMISSION.md` block 6, `<ADD_REPO_URL>`. Closed by item 4.
+- ~~**The repo URL is a placeholder.**~~ **Closed in Phase 6.** It is
+  `https://github.com/mericcintosun/stele` in `SUBMISSION.md` and in the README artifacts table.
 - **`docs/step-1.png` through `docs/step-6.png` and `docs/step-phone.png` do not exist.** `docs/`
   contains only `VIDEO.md`. The README references them and says plainly that they are not in the repo
   yet. Closed by item 2.
@@ -1106,7 +1111,10 @@ Honest gaps, unmet items with their evidence:
   places: the README table note, `SUBMISSION.md` block 5 and `SUBMISSION.md` block 8.
 - **The git history secret scan was not run**, only the working tree. Runner's job.
 
-### Manual checklist for the human
+### Manual checklist for the human (Phase 5 version, superseded)
+
+**Superseded by the Phase 6 checklist at the very end of this file**, which adds the Trader Skill
+install and `docs/RESULTS.md`. Kept here as the record of what Phase 5 handed over.
 
 In order. Items 1 through 4 are gated on each other; 5 and 6 can run in parallel with them.
 
@@ -1119,7 +1127,7 @@ In order. Items 1 through 4 are gated on each other; 5 and 6 can run in parallel
    header reads "Anthropic API" and not "offline stub". Shot list and timing contract in
    `docs/VIDEO.md`. Click **Reset round** before every take.
 4. **Upload the video, then replace `<ADD_VIDEO_URL>`** in `README.md` and `SUBMISSION.md` with one
-   find and replace. Fill `<ADD_REPO_URL>` in `SUBMISSION.md` at the same time.
+   find and replace. *(The repository URL half of this item was closed in Phase 6.)*
 5. **Submit the WEEX AI agent partner Google Form**, pasting from `SUBMISSION.md`. Its URL is still
    UNKNOWN and its closing date is unpublished, so treat it as possibly earlier than
    2026-09-02 15:59 UTC. See `DELIVERY.md`.
@@ -1128,3 +1136,200 @@ In order. Items 1 through 4 are gated on each other; 5 and 6 can run in parallel
    minimum 10 USDT trade size.
 7. **Code freeze once the video is recorded.** Nothing lands after that, or the recording stops
    matching the deploy.
+
+---
+
+## 7. Phase 6: jury fixes and the submission freeze
+
+**Goal.** Survive a judge who read the package and scored it 4.0 out of 10 with `wouldAdvance: false`
+on all three panels. No new feature, no new demo step, nothing a camera sees changed. Six slices,
+five of them documentation and one named constant.
+
+**Status.** All six slices landed. Nothing was cut. One code edit was made and it is the only one:
+`lib/config.ts:101`, `"cmt_linkusdt"` replaced with `"cmt_ltcusdt"`. Unverified: every item that
+needs a command (`npm install`, `npm run build`, `npm test`, the deploy, the screenshots, the
+recording). This agent had Write, Edit, Read, Glob and Grep only.
+
+### Decisions, one line per jury item
+
+| Jury item | Verdict | Where |
+| --- | --- | --- |
+| *"Beyan edilen stack ile dosya listesi uyuşmuyor"*. The record claims Python, FastAPI, SQLite, a systemd timer; the tree is Next.js and TypeScript. | **applied** | `SUBMISSION.md` block 2 "Tech stack, authoritative", a table where every layer names a file you can open, plus the explicit supersede line. `README.md` `## Tech stack` moved above `## Architecture` with the same supersede sentence. The word `superseded` is in both files. |
+| *"Kurallarda zorunlu tutulan resmi Trader Skill entegrasyonunun repoda hiçbir izi yok"*. | **applied** | New `docs/TRADER-SKILL.md`: the requirement as recorded, the install command, the four official skill names, the `weex-agent-skills` repo URL, the 404 pitfall, and a skill-to-module map stated as an equivalence rather than a substitution. Linked from `README.md`, `SUBMISSION.md` and `DELIVERY.md`. New checkbox in `DELIVERY.md` `## Before submitting`. **The skills were not vendored** and no install is claimed. |
+| *"Getiri performansı için hiçbir hesap kanıtı yok"*, weight 34, 238 points on the table. | **applied as a container, unverifiable as a number** | New `docs/RESULTS.md`: per-round table, per-thesis table over the five rounds, and the 11 step sim checklist. **Every cell reads `to fill`.** Referenced from `README.md` and `SUBMISSION.md` block 9. No agent may write a number into it. The evidence itself does not exist yet and cannot be produced by this repo: it needs a funded, allowlisted WEEX account and five weekly rounds. |
+| *"tek somut sayı olan '-2.14%' bile seed'den gelen bir zarar"*. | **applied** | `README.md:44` now reads "a seeded ledger of -2.14%". `docs/RESULTS.md` states in its own words that the figure is a seed value in `lib/data/seed.json` and not an account result. `SUBMISSION.md` block 9 says the same. `DEMO.md` and `docs/VIDEO.md` were left alone: they are recording scripts describing a screen, not claims about an account. |
+| Risk yönetimi: *"hesap seviyesinde limit hiçbir jüride görünmedi, yazılı tek eşik tez başına -2.0%"*. The written-down half. | **applied** | `README.md` `## Risk controls`: six clamps, each with its `lib/valve.ts` line, and the point that the exchange-side bracket survives the agent process dying. |
+| Same item, the account-level equity clamp in code. | **declined: jüri önerisi, kapsam dışı: yeni özellik** | Out of scope by the phase fence. `README.md` `## Risk controls` says plainly that **there is no account-level equity clamp in code**, that the limit today is the sum of the per-thesis quotas plus a minimal deposit, and that a real clamp is a Phase 7 item. |
+| Symbol universe: `cmt_linkusdt` is not in the competition universe, `cmt_ltcusdt` is. | **applied** | `lib/config.ts:101`. Grepped first: `cmt_linkusdt` appeared in exactly one place in the whole tree, no seed file, no component, no test. Nothing else in that file changed. |
+| *"README'deki demo talimatı takip edilemiyor, link yer tutucu olarak kalmış"*. | **applied** | `README.md` "Try it in 60 seconds" now has path A (the live URL) and **path B, a clone path**: `git clone`, `npm install`, `npm run dev`, `http://localhost:3000/console`, the same three steps, no wallet, no account and no API key on either path. A line directly under the token block says the tokens are placeholders and points a judge at path B. |
+| The repository URL was a placeholder. | **applied** | `https://github.com/mericcintosun/stele` filled in `SUBMISSION.md` block 7 and added as a Repository row to the README artifacts table, byte identical. The old token string is gone from the repo. |
+| The live URL and the video URL. | **unverifiable** | No deploy and no recording exist, and this agent cannot make either. `<ADD_LIVE_URL>` and `<ADD_VIDEO_URL>` stay as byte identical tokens across `README.md`, `SUBMISSION.md` and `docs/VIDEO.md`. Inventing a Vercel URL was the one thing that would have made the credibility finding true. |
+| Round rollover, a persisted ledger, a queue retry timer, an attribution poller, SSE. | **declined: jüri önerisi, kapsam dışı: yeni özellik** | Each is a new feature. All five were already named as gaps in `SUBMISSION.md` block 9 and in the README's "What we would build next", and they stay there. |
+
+Two further decisions, not from the jury:
+
+- **`SUBMISSION.md` was renumbered from eight blocks to nine.** The new stack block is block 2, so
+  Links is now block 7, Opt-ins block 8 and Known gaps block 9. The Phase 5 log above still cites the
+  old numbers; it is a log of that phase and was not rewritten.
+- **`SITE_URL` at `lib/config.ts:79` was read and left alone.** It still reads
+  `https://stele.vercel.app`. It is not a placeholder token and **no find and replace will reach
+  it**: if the deployed URL differs it needs a hand edit, which is item 1 of the checklist below.
+
+### Failed attempts
+
+None. Two things were caught by reading before they were written:
+
+- The stack block first listed "the five npm scripts" and then named six. `package.json:6-11` has
+  `dev`, `build`, `start`, `seed`, `demo:reset` and `test`. Corrected to name them without a count.
+- The `## Risk controls` section first attributed "participate with the minimum amount" to
+  `DELIVERY.md`. That sentence is in the verified-unknowns list of this file, not in `DELIVERY.md`.
+  Re-sourced before it shipped.
+
+### Files changed
+
+New: `docs/TRADER-SKILL.md`, `docs/RESULTS.md`.
+
+Edited: `README.md` (tech stack moved and extended, try-it block rewritten with the clone path, new
+`## Risk controls`, artifacts table gained a Repository row, Trader Skill paragraph added),
+`SUBMISSION.md` (new block 2, blocks renumbered, Trader Skill bullet, repo URL filled, the
+before-submitting list carried in, known gaps extended), `DELIVERY.md` (install command on the AI
+Team action line, two new checkboxes), `HANDOFF.md` (this section), `lib/config.ts` (one constant).
+
+Not touched, deliberately: `DEMO.md` (unchanged this phase, no step was cut), `docs/VIDEO.md`
+(verified correct by reading, nothing changed), `lib/valve.ts`, `lib/weex.ts`, `lib/agent.ts`,
+`lib/data/seed.json`, `package.json`, `.env.example`, `.gitignore`, and everything under `app/` and
+`components/`. No dependency, no route, no component, no environment variable.
+
+Still tombstoned and still needing `git rm`: `lib/data.ts`, `lib/adapter.ts`.
+
+### Commands run
+
+**None, this phase is file only.**
+
+### Open questions
+
+- **What is the real deployed URL?** Still open from Phase 5. If it is not `https://stele.vercel.app`
+  then `lib/config.ts:79` needs a hand edit as well as the three documents.
+- **Are the four skill names, the install command and the `weex-agent-skills` URL current?** They
+  come from research recorded during the build and **could not be verified by reading any file in
+  this repo**. `docs/TRADER-SKILL.md` says so in its own last section and points at the rules page.
+- **Is the 11 step API checklist wording the official one?** The six steps named in `DELIVERY.md`
+  (balance, leverage, price, place, close, 10 USDT minimum) are recorded; the other five rows of the
+  `docs/RESULTS.md` sim table are this repo's own path and are marked as such in the file.
+- **Is `cmt_ltcusdt` definitely in the competition universe and `cmt_linkusdt` definitely not?** The
+  edit was made on the brief's statement. No published symbol list was readable during this phase.
+  One line to revert at `lib/config.ts:101` if the brief is wrong.
+- **Whose name goes on the `LICENSE` copyright line?** Still "Stele contributors". Open from Phase 5.
+- **Is the `New user pool` row claimable?** Still open from Phase 5.
+
+### Next best step
+
+Deploy or confirm the deploy, then walk the checklist below in order. Item 1 unblocks 2, 3 and 4.
+Items 5 through 8 are account work and can start immediately: item 8 is the only one that closes the
+238 point gap the jury named, and it is the one nothing in this repo can do for you.
+
+### Acceptance gate, checked by reading files
+
+Met:
+
+- **Every jury item is accounted for**, in the table above: applied with its file, declined with
+  `jüri önerisi, kapsam dışı: yeni özellik`, or unverifiable with the missing evidence named. None
+  dropped.
+- **README first screen.** `README.md:3-6` problem and fix in two sentences, `:8-10` the stakes,
+  `:12-16` the token block plus the repository URL, `:18` the "both are placeholders" line, `:21-22`
+  the pointer to DEMO.md step 4. No create-next-app boilerplate.
+- **Mermaid block still resolves.** Unchanged this phase. Every node re-checked against the tree:
+  `app/console/page.tsx`, `components/DecisionConsole.tsx`, `components/ThesisLedger.tsx`,
+  `components/DecisionLog.tsx`, `app/api/decide/route.ts`, `lib/valve.ts`, `lib/agent.ts`,
+  `lib/weex.ts`, `lib/store/round.ts`, `lib/data/seed.json`, `app/evidence/page.tsx`,
+  `lib/evidence.ts`, plus the two external services.
+- **Quickstart is 5 commands** (`npm install`, `cp`, `npm run dev`, `npm run build`, `npm test`) and
+  every script it names exists at `package.json:6-11`. `seed` and `demo:reset` are documented
+  directly under it. The clone path in "Try it in 60 seconds" is a separate block and is not part of
+  that count.
+- **Artifacts table has three rows**: live URL, video URL, repository. No contract or explorer row;
+  Glob confirms there is no `contracts/` directory.
+- **Track table.** Four rows in `README.md` and the same four in `SUBMISSION.md` block 6, with the
+  HTTP 405 note beneath both. The backticked prize strings are byte identical between the two files.
+  *Deviation, carried from Phase 5 and deliberate:* the README rows add an English gloss in
+  parentheses **outside** the backticks, so the quoted strings match and the surrounding cell text
+  does not.
+- **Screenshots.** `docs/step-1.png` through `docs/step-6.png` and `docs/step-phone.png` are
+  referenced in `README.md` with a line saying they are captured by hand from the live URL. They do
+  not exist yet.
+- **`LICENSE` exists** at repo root and `README.md` links it.
+- **AI use section** still quotes the two WEEX sources verbatim with their URLs
+  (`.../api-doc/ai/introduction/Rule`, `.../api-doc/ai/UploadAiLog`). Unchanged.
+- **`docs/TRADER-SKILL.md` and `docs/RESULTS.md` exist** and are each referenced from `README.md` and
+  `SUBMISSION.md`. `DELIVERY.md` references both as well.
+- **`docs/RESULTS.md` contains no fabricated figure.** Every results cell reads `to fill`. The only
+  numbers in the file are row and step labels, the 10 USDT minimum trade size, and the Season 1
+  1,000 USDT and 20x figures, both explicitly marked unconfirmed for AI Wars II.
+- **Tokens.** `<ADD_LIVE_URL>` and `<ADD_VIDEO_URL>` are byte identical in `README.md`,
+  `SUBMISSION.md` and `docs/VIDEO.md` (the video token in the first two only, as before). The
+  repository token string appears nowhere in the repo.
+- **Environment.** Re-grepped every `process.env.X` under `lib/`, `app/`, `components/` and
+  `scripts/`: `ADAPTER_MODE`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `STELE_BASE_URL`,
+  `WEEX_API_KEY`, `WEEX_API_SECRET`, `WEEX_API_PASSPHRASE`, `WEEX_API_HOST`, `WEEX_VENUE`,
+  `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`. All eleven have a line in `.env.example`. Nothing added,
+  nothing removed. `.gitignore:4-5` has `.env*` and `!.env.example`.
+- **Secret scan of the working tree.** Grepped `sk-ant-`, `PASSPHRASE=` with a value, `SECRET=` with
+  a value and `API_KEY=` with eight or more characters, outside `node_modules`. **No match.** The
+  only hits were the two lines in this file describing the Phase 5 scan. **The git history scan is
+  the runner's and was not done here.**
+- **`lib/config.ts`.** `ALLOWED_SYMBOLS` now reads `cmt_btcusdt`, `cmt_ethusdt`, `cmt_solusdt`,
+  `cmt_xrpusdt`, `cmt_bnbusdt`, `cmt_dogeusdt`, `cmt_adausdt`, `cmt_ltcusdt`. Grep for
+  `cmt_linkusdt` across the repo returns nothing. No other line in that file changed, `SITE_URL`
+  included.
+- **`DEMO.md` is unchanged.** No new route file, no new component, no new dependency in
+  `package.json`. No import anywhere was added or moved, so nothing can have stopped resolving.
+  `lib/data/seed.json` untouched, so every console panel stays non-empty.
+
+Unmet, with the evidence that is missing:
+
+- **Every command is unverified.** No `npm install`, no `npm run build`, no `npm test`. The agent has
+  no shell. The one code edit is a string inside a `readonly` tuple typed by `typeof`, and grep shows
+  **nothing in the repo imports `AllowedSymbol` or `isAllowedSymbol`**, so there is no consumer that
+  could stop type-checking. That reasoning is still not a build.
+- **The live URL is still a placeholder**, `README.md:12`. No verified deploy is recorded anywhere.
+- **The video URL is still a placeholder**, `README.md:14`.
+- **No account results exist**, `docs/RESULTS.md` is entirely `to fill`. This is the 238 point gap
+  the jury named and it closes with a funded allowlisted account and five weekly rounds, not with a
+  file.
+- **The seven screenshots do not exist.** `docs/` holds `VIDEO.md`, `TRADER-SKILL.md` and
+  `RESULTS.md` only.
+- **The Trader Skill install is not verified as done**, and cannot be verified from this repo. It is
+  a checkbox in `DELIVERY.md` and item 5 below.
+- **The four skill names, the install command and the `weex-agent-skills` URL are unverified.** See
+  open questions.
+- **The prize amounts are still unverified**, HTTP 405 reason, unchanged.
+- **The `LICENSE` copyright holder is still generic.**
+
+### Manual checklist for the human
+
+This is the current one. In order. Items 1 through 4 gate each other; 5 through 8 can run in
+parallel and item 5 is the long pole.
+
+1. **Deploy or confirm the live URL**, then replace `<ADD_LIVE_URL>` in `README.md`, `SUBMISSION.md`
+   and `docs/VIDEO.md`. If the URL is not `https://stele.vercel.app`, also hand-edit `SITE_URL` at
+   `lib/config.ts:79`. **No find and replace reaches that line.**
+2. **Capture `docs/step-1.png` through `docs/step-6.png` and `docs/step-phone.png`** from the live
+   URL, one per DEMO.md step plus `/console` at 360px width.
+3. **Record the 90 second take** against the live URL with `ANTHROPIC_API_KEY` set, so the console
+   header reads "Anthropic API" and not "offline stub". Shot list and timing in `docs/VIDEO.md`.
+   Click **Reset round** before every take.
+4. **Upload the video, then replace `<ADD_VIDEO_URL>`** in `README.md` and `SUBMISSION.md`, one find
+   and replace for both.
+5. **Install the four WEEX skills on the trading host**:
+   `npx skills add https://github.com/weex-labs/weex-agent-skills --all`. `docs/TRADER-SKILL.md` has
+   the names and the 404 pitfall. This is a competition requirement, not a nicety.
+6. **File the WEEX AI agent partner Google Form**, pasting from `SUBMISSION.md`. Its URL is still
+   UNKNOWN and its closing date is unpublished, so treat it as possibly earlier than
+   2026-09-02 15:59 UTC.
+7. **Confirm the WEEX allowlist** for the trading UID and the server's static IP. Manual approval by
+   WEEX staff, no published turnaround.
+8. **Fill `docs/RESULTS.md` from the sim run**, then from each round as it closes. Every cell reads
+   `to fill` today. **No agent writes a number into that file.** A blank cell is honest; a guessed
+   one is `fabricating AI logs` under the WEEX rules and is disqualifying.
+9. **Code freeze after the recording.** Nothing lands after that, or the recording stops matching the
+   deploy.
