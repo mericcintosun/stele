@@ -1,35 +1,40 @@
 "use client";
 
-// "The loop, four steps" artık interaktif bir stepper: solda tıklanabilir
-// adımlar, sağda seçilen adımın anlatımı ve o adıma ait mono iz satırı.
-// İçerik page.tsx'teki statik kartlarla aynı iddialar; hiçbir claim değişmedi.
+// Loop artık görsel anlatıyor: her adımın Meshy üretimi taş-devre görseli
+// panelin yarısını kaplar, metin TEK cümledir, altta mono iz satırı durur.
+// İçerik iddiaları değişmedi, yalnızca yoğunluk düştü.
 
+import Image from "next/image";
 import { useState } from "react";
 
 const STEPS = [
   {
     step: "01",
-    title: "Every order belongs to a written thesis",
-    body: "Six theses, each with a name and an entry condition written before the round starts. A signal that matches none of them never becomes an order.",
-    trace: 'signal SIG-9104 matched thesis TH-SQZ-LONG ("Crowded Short Squeeze")',
+    title: "A written thesis",
+    body: "Six named theses are written before the round; a signal that matches none of them never becomes an order.",
+    trace: 'SIG-9104 matched TH-SQZ-LONG ("Crowded Short Squeeze")',
+    img: "/brand/loop-thesis.png",
   },
   {
     step: "02",
-    title: "The same decision goes to the compliance endpoint",
-    body: "stage, model, input, output and a 1000 character explanation are posted to /capi/v3/order/uploadAiLog. The returned orderId pairs the fill with the thesis.",
+    title: "Posted as evidence",
+    body: "Every decision goes to uploadAiLog; the returned orderId pairs the fill with its thesis.",
     trace: 'POST /capi/v3/order/uploadAiLog -> {"code":"00000","orderId":1102938471}',
+    img: "/brand/loop-endpoint.png",
   },
   {
     step: "03",
-    title: "Closed PnL is written back to the thesis",
-    body: "When a position closes, its realized result lands on the thesis that opened it. Press Close at stop on the console and watch one thesis change state. That ledger is the only thing carried from round to round.",
-    trace: "POS-4459 closed: -4.0 USDT -> TH-SQZ-LONG ledger -1.74% -> -2.14%",
+    title: "PnL writes back",
+    body: "Closed PnL lands on the thesis that opened it; that ledger is all that carries between rounds.",
+    trace: "POS-4459 closed: -4.0 USDT -> TH-SQZ-LONG -1.74% -> -2.14%",
+    img: "/brand/loop-ledger.png",
   },
   {
     step: "04",
-    title: "The next order is sized from that ledger",
-    body: "Not from total account performance. A thesis under the halt line goes to zero capital and the agent refuses its own order, then posts the refusal too.",
-    trace: "TH-SQZ-LONG below halt line -2.0% -> valve 0.00x -> order refused, refusal posted",
+    title: "The valve decides",
+    body: "A thesis under the halt line gets zero capital: the agent refuses its own order and posts the refusal.",
+    trace: "TH-SQZ-LONG below -2.0% -> valve 0.00x -> order refused",
+    img: "/brand/loop-valve.png",
   },
 ];
 
@@ -38,7 +43,7 @@ export default function LoopSteps() {
   const s = STEPS[active];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+    <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
       <div className="flex flex-col gap-1.5" role="tablist" aria-label="The loop, four steps">
         {STEPS.map((x, i) => (
           <button
@@ -61,15 +66,27 @@ export default function LoopSteps() {
 
       <div
         key={s.step}
-        className="anim-fade-up rounded-xl border border-line bg-panel p-6"
         role="tabpanel"
+        className="anim-fade-up overflow-hidden rounded-xl border border-line bg-panel"
       >
-        <p className="font-mono text-xs text-acc">{s.step}</p>
-        <h3 className="mt-2 text-lg font-semibold text-ink">{s.title}</h3>
-        <p className="mt-2 text-sm leading-relaxed text-mut">{s.body}</p>
-        <p className="mt-4 overflow-x-auto rounded-lg border border-line bg-panel2 px-3 py-2 font-mono text-[11px] leading-relaxed text-acc/90">
-          {s.trace}
-        </p>
+        <div className="grid items-center sm:grid-cols-[240px_minmax(0,1fr)]">
+          <Image
+            src={s.img}
+            alt=""
+            aria-hidden
+            width={480}
+            height={480}
+            className="h-48 w-full object-cover sm:h-full sm:min-h-[240px]"
+          />
+          <div className="p-6">
+            <p className="font-mono text-xs text-acc">{s.step}</p>
+            <h3 className="mt-1.5 text-lg font-semibold text-ink">{s.title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-mut">{s.body}</p>
+            <p className="mt-4 overflow-x-auto rounded-lg border border-line bg-panel2 px-3 py-2 font-mono text-[11px] leading-relaxed text-acc/90">
+              {s.trace}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
