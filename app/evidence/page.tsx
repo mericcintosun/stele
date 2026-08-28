@@ -14,6 +14,10 @@
 // /log used to be this page. It now redirects here.
 
 import Link from "next/link";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { buttonClass } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 import { evidenceSummary, EXPLANATION_LIMIT } from "@/lib/evidence";
 import { stamp } from "@/lib/format";
 import { getStore, ledgerSource } from "@/lib/store";
@@ -27,13 +31,14 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-const STAGE_STYLE: Record<string, string> = {
-  signal: "border-line bg-panel2 text-mut",
-  thesis_match: "border-line bg-panel2 text-mut",
-  sizing: "border-warn/40 bg-warn/10 text-warn",
-  order: "border-acc/40 bg-acc/10 text-acc",
-  rejection: "border-bad/40 bg-bad/10 text-bad",
-  attribution: "border-ok/40 bg-ok/10 text-ok",
+/** One badge variant per uploadAiLog stage. Same colors the old map carried. */
+const STAGE_VARIANT: Record<string, BadgeVariant> = {
+  signal: "neutral",
+  thesis_match: "neutral",
+  sizing: "warn",
+  order: "accent",
+  rejection: "bad",
+  attribution: "ok",
 };
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -50,7 +55,7 @@ function Stat({ label, value, tone = "" }: { label: string; value: string; tone?
   return (
     <div className="min-w-0">
       <p className="font-mono text-[10px] uppercase tracking-wide text-mut">{label}</p>
-      <p className={`mt-0.5 break-words font-mono text-sm ${tone || "text-ink"}`} title={value}>
+      <p className={cn("mt-0.5 break-words font-mono text-sm", tone || "text-ink")} title={value}>
         {value}
       </p>
     </div>
@@ -61,13 +66,9 @@ function Record({ log }: { log: AiLogRecord }) {
   return (
     <li className="space-y-2 px-4 py-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span
-          className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase ${
-            STAGE_STYLE[log.stage] ?? STAGE_STYLE.signal
-          }`}
-        >
+        <Badge variant={STAGE_VARIANT[log.stage] ?? "neutral"} className="uppercase">
           {log.stage}
-        </span>
+        </Badge>
         <span className="max-w-full truncate font-mono text-[11px] text-mut" title={log.id}>
           {log.id}
         </span>
@@ -107,11 +108,11 @@ export default async function EvidencePage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-semibold tracking-tight">Evidence trail</h2>
+        <h2 className="type-h2">Evidence trail</h2>
         <p className="font-mono text-[11px] break-all text-mut">POST {summary.endpoint}</p>
       </div>
 
-      <p className="max-w-3xl leading-relaxed text-mut">
+      <p className="type-body measure text-mut">
         This is the evidence of AI participation WEEX requires from teams on the AI side. A team
         that cannot present it is removed from the ranking, and the AI model token allocation is
         awarded on proof that a model really answered. Every record below was written by the same
@@ -120,7 +121,7 @@ export default async function EvidencePage() {
       </p>
 
       {/* Summary strip */}
-      <section className="rounded-xl border border-line bg-panel p-4">
+      <Card className="p-4">
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
           <Stat label="endpoint" value={summary.endpoint} />
           <Stat label="venue" value={summary.venue} tone="text-acc" />
@@ -142,13 +143,10 @@ export default async function EvidencePage() {
             <p className="font-mono text-[10px] uppercase tracking-wide text-mut">stages written</p>
             <ul className="mt-1 flex flex-wrap gap-1.5">
               {summary.byStage.map((s) => (
-                <li
-                  key={s.stage}
-                  className={`rounded border px-1.5 py-0.5 font-mono text-[10px] ${
-                    STAGE_STYLE[s.stage] ?? STAGE_STYLE.signal
-                  }`}
-                >
-                  {s.stage} {s.count}
+                <li key={s.stage}>
+                  <Badge variant={STAGE_VARIANT[s.stage] ?? "neutral"}>
+                    {s.stage} {s.count}
+                  </Badge>
                 </li>
               ))}
             </ul>
@@ -193,22 +191,22 @@ export default async function EvidencePage() {
             into this repository, so nothing on this page is a copy of them.
           </p>
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-line bg-panel">
+      <Card>
         {logs.length === 0 ? (
           <div className="space-y-3 px-4 py-8">
-            <p className="text-sm text-mut">
+            <p className="text-sm leading-relaxed text-mut">
               No decision has been recorded yet, so there is nothing for the exchange to have
               received. Run step 2 of DEMO.md: open the console and press Run decision loop on the
               BTC signal. The record appears here the moment the loop finishes.
             </p>
-            <Link
-              href="/console"
-              className="inline-flex min-h-11 items-center rounded-lg bg-acc px-4 text-sm font-semibold text-bg transition-opacity hover:opacity-90"
-            >
+            <Link href="/console" className={buttonClass({ variant: "primary", size: "md" })}>
               Open the decision console
             </Link>
+            <p className="font-mono text-[11px] text-mut">
+              POST /capi/v3/order/uploadAiLog writes the record before the order leaves
+            </p>
           </div>
         ) : (
           <ul className="divide-y divide-line">
@@ -217,11 +215,11 @@ export default async function EvidencePage() {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
       <Link
         href="/console"
-        className="inline-flex min-h-11 items-center px-1 text-sm text-acc hover:underline"
+        className="inline-flex min-h-11 items-center rounded-lg px-1 text-sm text-acc hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acc"
       >
         Back to the decision console
       </Link>

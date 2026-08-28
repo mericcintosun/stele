@@ -25,7 +25,7 @@ export default async function ConsolePage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-semibold tracking-tight">Decision console</h2>
+        <h2 className="type-h2">Decision console</h2>
         <p className="font-mono text-[11px] text-mut">
           live wiring: WEEX OpenAPI v3 + Anthropic model chain, round in {storeMode()}
         </p>

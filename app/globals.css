@@ -31,3 +31,57 @@ body {
   scrollbar-color: var(--color-line) transparent;
   scrollbar-width: thin;
 }
+
+/* ---------------------------------------------------------------------------
+   Type scale.
+
+   Five steps, written as plain classes rather than as Tailwind utilities picked
+   per element, so a heading cannot quietly land between two sizes. Display is
+   for the product name and appears once per page at most. Everything below body
+   keeps using the utility scale, which is what the console's dense mono rows
+   want.
+
+   .measure is the reading width for prose: 68ch, inside the 65 to 75 character
+   band. It is only for paragraphs, never for a panel or a table.
+   --------------------------------------------------------------------------- */
+.type-display {
+  font-size: clamp(2.75rem, 9vw, 4.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+  font-weight: 700;
+}
+
+.type-h1 {
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+}
+
+.type-h2 {
+  font-size: 1.375rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+.type-h3 {
+  font-size: 1rem;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+.type-body {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.type-lead {
+  font-size: 1.125rem;
+  line-height: 1.65;
+}
+
+.measure {
+  max-width: 68ch;
+}

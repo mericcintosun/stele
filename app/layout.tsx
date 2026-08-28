@@ -36,7 +36,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen overflow-x-hidden antialiased">
-        <header className="border-b border-line">
+        {/* Sticky, because the console action lives in the nav and the landing
+            page is taller than a screen. The blur keeps the token background
+            readable over a panel that scrolls under it. */}
+        <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
           <SiteNav />
         </header>
         <main className="mx-auto w-full max-w-[94rem] px-4 py-8 sm:px-6">{children}</main>
