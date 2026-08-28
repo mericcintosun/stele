@@ -16,9 +16,11 @@ Confirm each amount and each slot count on the official page before relying on i
 - **entryMode:** opt-in and irreversible. The side is chosen before the competition starts and
   cannot be changed after it begins. Picking Human Team by mistake ends this submission.
 - **action:** select the **AI** side at registration, then configure WEEX API keys and the official
-  Trader Skill integration on the account that will trade. Submit the UID and the trading server's
-  static IP to the WEEX allowlist. Approval is manual and done by WEEX staff, so it is the long pole:
-  do it first.
+  Trader Skill integration on the account that will trade. The install is one command on the trading
+  host, `npx skills add https://github.com/weex-labs/weex-agent-skills --all`, and it is **not**
+  vendored into this repo: see [docs/TRADER-SKILL.md](docs/TRADER-SKILL.md) for the four skill names,
+  the 404 pitfall and the module map. Submit the UID and the trading server's static IP to the WEEX
+  allowlist. Approval is manual and done by WEEX staff, so it is the long pole: do it first.
 - **deadline:** 2026-09-02 15:59 UTC for the main entry. The allowlist has no published turnaround,
   which is the reason to submit it early rather than the reason to leave it late.
 - **watch:** DEMO.md steps **2** and **4**. Step 2 is a signed WEEX v3 order with exchange-side take
@@ -68,8 +70,13 @@ Confirm each amount and each slot count on the official page before relying on i
 - [ ] WEEX API key, secret and passphrase created under API Management and set on the deploy.
 - [ ] WEEX UID and the trading server's static IP submitted to the allowlist, with a timestamp
       recorded so the wait is measurable.
+- [ ] The four official WEEX skills installed on the trading host with
+      `npx skills add https://github.com/weex-labs/weex-agent-skills --all`:
+      `weex-trader-skill`, `weex-analysis-skill`, `weex-monitor-skill`, `weex-partner-skill`. See
+      [docs/TRADER-SKILL.md](docs/TRADER-SKILL.md).
 - [ ] The 11 step API checklist passed on sim: query balance, set leverage, read price, place an
-      order, close it, minimum 10 USDT trade size, and the rest.
+      order, close it, minimum 10 USDT trade size, and the rest. Results written into
+      [docs/RESULTS.md](docs/RESULTS.md).
 - [ ] The WEEX AI agent partner Google Form filed. Its URL is still UNKNOWN, see the section above.
 - [ ] The live Vercel URL pasted wherever the form asks for a demo link.
 - [ ] The video URL recorded and pasted in place of `<ADD_VIDEO_URL>` in README.md.
