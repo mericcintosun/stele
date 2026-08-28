@@ -25,15 +25,15 @@ const DEMO_URL = "https://github.com/mericcintosun/stele/blob/main/DEMO.md";
 const CRITERIA = [
   {
     title: "Return performance",
-    body: "The valve drops a losing reason mid week rather than at the end of the round, so the remaining days trade only on the theses that still work.",
+    short: "The valve drops a losing reason mid week, so the remaining days trade only on what still works.",
   },
   {
     title: "Risk control",
-    body: "Every entry ships with exchange-side take profit and stop loss, so a position stays protected if the agent process dies. A cumulative per-thesis quota caps exposure independently of leverage.",
+    short: "Every entry ships with exchange-side TP and SL, and a per-thesis quota caps exposure.",
   },
   {
     title: "Strategy stability",
-    body: "The thesis ledger is the only state carried between rounds. Round five cannot repeat round one's mistake, because round one wrote down which reason killed it.",
+    short: "Round five cannot repeat round one's mistake; the ledger remembers which reason lost.",
   },
 ];
 
@@ -83,12 +83,7 @@ export default function Home() {
               losing money.
             </p>
 
-            <p className="type-body measure anim-fade-up mt-4 text-mut" style={{ ["--d" as string]: "260ms" }}>
-              The walk takes ninety seconds: press Run decision loop on the SOL signal and watch
-              the agent refuse its own order, then post the refusal to the exchange.
-            </p>
-
-            <div className="anim-fade-up mt-8 flex flex-wrap items-center gap-x-5 gap-y-3" style={{ ["--d" as string]: "340ms" }}>
+            <div className="anim-fade-up mt-8 flex flex-wrap items-center gap-x-5 gap-y-3" style={{ ["--d" as string]: "280ms" }}>
               <Link href="/console" className={`group ${buttonClass({ variant: "primary", size: "md" })}`}>
                 Watch the agent refuse its own order
                 <span className="ml-1.5 inline-block transition-transform duration-200 group-hover:translate-x-1">→</span>
@@ -143,51 +138,31 @@ export default function Home() {
       {/* Section 1: the failure mode and the mechanism */}
       <section className="space-y-6">
         <Reveal>
-          <p className="type-body measure text-mut">
-            Open the screen and you see one list: the reasons the agent used to open trades, and
-            what each one has made or lost so far. A losing reason gets a smaller order. A reason
-            that keeps losing gets no order at all.
-          </p>
-        </Reveal>
-        <Reveal delay={80}>
-        <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardBody pad="lg" className="space-y-3">
-            <CardTitle size="md">The failure mode</CardTitle>
-            <p className="type-body text-mut">
-              WEEX published the postmortem themselves after Season 1:{" "}
-              <span className="text-ink">80% win rate to 40% drawdown</span>. Agents with good hit
-              rates still finished the round deep in drawdown. The cause repeats: the agent keeps
-              reproducing the same broken reason all week, because it has no record of which reason
-              is losing money. It only has a total.
-            </p>
-            <p className="type-body text-mut">
-              Ranking here is not return alone. It weighs return, risk control and strategy
-              stability together, across five consecutive weekly rounds. An agent that cannot name
-              its worst idea cannot stop repeating it in round five.
-            </p>
-          </CardBody>
-        </Card>
-
-        <Card tone="accent">
-          <CardBody pad="lg" className="space-y-3">
-            <CardTitle size="md" className="text-acc">
-              The mechanism
-            </CardTitle>
-            <p className="type-body text-mut">
-              WEEX already requires every AI participant to post decision logs to{" "}
-              <CopyChip text="/capi/v3/order/uploadAiLog" />, and
-              disqualifies teams that cannot produce valid evidence of AI participation. Most teams
-              treat that as paperwork.
-            </p>
-            <p className="type-body text-mut">
-              Stele treats it as the memory. The same write that satisfies the compliance gate is
-              the thesis ledger, and the ledger is what sizes the next order. The weakest link in
-              the field becomes the load bearing part of the agent.
-            </p>
-          </CardBody>
-        </Card>
-        </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border border-line bg-panel p-6">
+              <p className="font-mono text-4xl font-bold tracking-tight text-ink">
+                80% <span className="text-bad">→ 40%</span>
+              </p>
+              <p className="mt-2 text-sm text-mut">
+                Season 1: win rate to drawdown. Agents repeat a broken reason all week because they
+                only have a total, not a per-reason ledger.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-line bg-panel p-6">
+              <p className="font-mono text-4xl font-bold tracking-tight text-bad">-2.0%</p>
+              <p className="mt-2 text-sm text-mut">
+                The halt line. A thesis this deep in its own realized PnL gets zero capital until
+                the round rolls.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-acc/40 bg-acc/10 p-6">
+              <p className="font-mono text-2xl font-bold tracking-tight text-acc">uploadAiLog</p>
+              <p className="mt-2 text-sm text-mut">
+                The compliance write everyone treats as paperwork is Stele&apos;s memory: the same
+                post is the thesis ledger that sizes the next order.
+              </p>
+            </div>
+          </div>
         </Reveal>
       </section>
 
@@ -205,18 +180,20 @@ export default function Home() {
           <h2 className="type-h2">Against the three ranking criteria</h2>
           <div className="grid gap-4 sm:grid-cols-3">
             {CRITERIA.map((c) => (
-              <Card key={c.title}>
-                <CardBody pad="md">
-                  <CardTitle level={3}>{c.title}</CardTitle>
-                  <p className="mt-1.5 text-sm leading-relaxed text-mut">{c.body}</p>
-                </CardBody>
-              </Card>
+              <div key={c.title} className="rounded-2xl border border-line bg-panel p-5 transition-colors hover:border-acc/30">
+                <p className="text-sm font-semibold text-ink">{c.title}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-mut">{c.short}</p>
+              </div>
             ))}
           </div>
         </div>
 
-        <div className="space-y-6">
-          <h2 className="type-h2">What is already out there</h2>
+        <details className="group">
+          <summary className="flex cursor-pointer select-none items-center gap-2 text-mut transition-colors hover:text-ink [&::-webkit-details-marker]:hidden [&::marker]:content-none">
+            <span className="text-xs transition-transform group-open:rotate-90">▸</span>
+            <span className="text-sm font-medium">What is already out there, and what it misses</span>
+          </summary>
+          <div className="mt-4">
           <Card className="overflow-x-auto">
             <table className="w-full min-w-[40rem] text-left text-sm">
               <thead className="border-b border-line text-mut">
@@ -237,7 +214,8 @@ export default function Home() {
               </tbody>
             </table>
           </Card>
-        </div>
+          </div>
+        </details>
       </section>
 
       <footer className="space-y-4 border-t border-line pt-8 pb-12">
@@ -275,9 +253,8 @@ export default function Home() {
         </div>
 
         <p className="measure text-xs leading-relaxed text-mut">
-          Stele runs against WEEX OpenAPI v3. Without credentials the console runs on seed data and
-          the shadow venue, so the loop is inspectable before the API allowlist clears. Set the WEEX
-          keys and it signs and sends the same calls.
+          Without WEEX credentials the console runs the same loop on seed data; set the keys and it
+          signs the same calls.
         </p>
 
         <p className="text-xs text-mut">MIT licensed. Stele contributors.</p>
