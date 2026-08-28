@@ -1804,3 +1804,299 @@ gap two panels have now named.
 the live URL and is **forbidden**. That includes a one word copy fix and a spacing tweak. Late
 findings go into this file, and where honesty requires it, into a known-gap line in `SUBMISSION.md`.
 Nothing else lands.
+
+---
+
+## 10. Phase 9: the scene pass closed, and the submission freeze
+
+The brief for this phase called this section `## 9. Phase 9`. `## 9.` is already taken by Phase 8, so
+it is `## 10.` here and the phase name is unchanged. Nothing else about the heading was altered.
+
+**Goal.** Phase 8 built the scene and left five defects in it. This phase closes them, binds the hero
+card's numbers to `lib/data/seed.json` so they cannot drift from `/console`, puts the seed-source
+honesty line on `/` where the judge panel asked for it, and freezes the package. No layout from
+Phase 8 was rebuilt: the two-column hero, the monument, the four brand step images, the staggered
+fade-up, the tilting card, the tablist stepper, the big-number tiles and the folded comparison table
+are all the same markup.
+
+**Status.** All five slices landed. Nothing was cut, so there is no `### Cut under time` section.
+Unverified: everything that needs a command. This agent had Write, Edit, Read, Glob and Grep and no
+shell, so `npm install`, `npm run build`, the redeploy, the screenshots and every visual claim are
+the runner's.
+
+### Named offenses
+
+Confirmed by reading, before any edit. Each one maps to a slice below.
+
+1. **`app/page.tsx:17` imported `CopyChip` and never rendered it.** The whole copy-chip deliverable
+   was a dead import, and the one string a judge would want in hand,
+   `/capi/v3/order/uploadAiLog`, printed as plain text at `app/page.tsx:159`. Fixed in slice 4.
+2. **`app/page.tsx:19` imported `Card, CardBody, CardTitle`;** only `Card` was used, at
+   `app/page.tsx:197`. Two unused named imports in the file a judge opens first. Fixed in slice 2.
+3. **Two Turkish tooltips shipped to a judge.** `components/brand/HeroLedger.tsx:85` read
+   `title="Konsolda aç"` and `components/CopyChip.tsx:25` read `title="Kopyala"`. Both are
+   user-facing strings, both are now English. Fixed in slice 2.
+4. **`components/brand/HeroLedger.tsx:10-41` hardcoded the three ledger rows as string literals**
+   (`"+3.21%"`, `"+1.62%"`, `"-2.14%"`, `"1.25x"`, `"7/11 closed"`, `"round 2 / 5"`). They agreed
+   with `lib/data/seed.json` on the day they were typed and nothing kept them there. Fixed in
+   slice 3.
+5. **The landing page printed those figures with no seed disclaimer anywhere on `/`.** The panel
+   raised this as a blocker and it had been answered on `/console` only, by the `ledgerSource()`
+   line at `app/console/page.tsx:34-38`. `/` is the page a judge opens first. Fixed in slice 3.
+
+Two more found while reading, both minor and both fixed:
+
+6. **Turkish code comments in six files**, in a repo judges are invited to read:
+   `app/page.tsx:61-63` and `:120`, `:130`, `components/brand/HeroLedger.tsx:3-5` and `:49`,
+   `components/LoopSteps.tsx:3-5`, `components/CopyChip.tsx:3-4` and `:17`,
+   `components/Reveal.tsx:3-5`, `app/globals.css:128`. All rewritten into English with their meaning
+   kept; none was deleted.
+7. **`SUBMISSION.md:35-36` named the superseded stack** (`Python, FastAPI, SQLite or a systemd
+   timer`) inside the sentence that supersedes it. The negation was correct but a form field pasted
+   out of context reads the nouns, not the negation. See the decision below.
+
+Not an offense, recorded rather than fixed: **`.gitignore:10` carries a Turkish comment**,
+`# farm: sır dosyaları (otomatik eklendi)`. It is a line the farm runner appended to its own file,
+not product surface, and editing it risks a duplicate the next time the runner touches it. Left
+alone deliberately.
+
+### Decisions
+
+- **The hero rows are derived, not copied.** `components/brand/HeroLedger.tsx` now imports
+  `thesisById` and `account` from `@/lib/data/seed`, `valveFor` from `@/lib/valve`, and `pct` and
+  `usdt` from `@/lib/format`. Every figure in the card, including the `round 2 / 5` header and the
+  sentence in the attribution strip at the bottom, is computed from those. `lib/valve.ts` was
+  **called, never edited**: the multiplier and the state badge are `valveFor(t).multiplier` and
+  `valveFor(t).state`, which is the same function `components/ThesisLedger.tsx` calls, so the hero
+  and the console cannot disagree about a badge.
+- **The card renders a `throttled` state too.** The three shown ids evaluate to active, active and
+  halted today, but `valveFor()` has a third state and a seed edit could reach it. The badge takes
+  the `warn` token in that case rather than silently drawing a green `ACTIVE` over a throttled
+  thesis. `anim-glow` stays on the halted badge only, as before.
+- **A missing thesis id drops its row.** `SHOWN.flatMap()` returns `[]` for an id `thesisById()`
+  cannot find, so a renamed seed row shortens the card instead of rendering `undefined` into it. All
+  three ids are present today at `lib/data/seed.json:13`, `:27` and `:41`.
+- **The bar width stayed a presentational constant**, declared next to the id it belongs to in
+  `SHOWN` and commented as presentation, not data. It is a share of the card width, not a figure
+  anything reads.
+- **The seeded-fixture line is outside the tilting card.** It is a sibling `<p>` in `app/page.tsx`,
+  under `<HeroLedger />` inside the same positioned wrapper, so it never rotates with the mouse tilt
+  and stays readable at any angle. Its wording follows the console's own line at
+  `app/console/page.tsx:36`.
+- **The copy chip took the third stat tile's heading slot.** The tile read a bare `uploadAiLog`
+  heading; it now opens with `<CopyChip text="/capi/v3/order/uploadAiLog" />` and keeps its one
+  sentence underneath, so the tile still reads as chip-then-sentence rather than growing a paragraph.
+  The chip also gained `min-h-11`, because it is rendered for the first time this phase and every
+  other interactive element in the tree carries that tap target.
+- **`SUBMISSION.md` stopped naming the superseded stack.** The sentence at `:35` now reads "a
+  different backend language, a relational database or a scheduled timer unit" and asserts what the
+  repo is, rather than listing four nouns a form-field reader might carry away as a claim. The
+  explicit named version survives in `README.md:109-111`, which points at `SUBMISSION.md` block 2 as
+  the authoritative listing, so the record of what was superseded is not lost.
+- **`README.md` needed no landing-page repair.** Grepped for `landing`, `overview page` and
+  `app/page.tsx` across the file: no match. The README never described `/`'s sections, so the layout
+  change made nothing in it false and no sentence was invented to match.
+
+### Failed attempts
+
+None. Two things were caught by reading before they shipped:
+
+- The seeded-fixture line was first written as a sibling of the positioned wrapper rather than inside
+  it. At `lg` the wrapper is `lg:absolute lg:bottom-4` inside a `lg:h-[560px]` column whose header
+  carries `overflow-hidden`, so a line placed after it would have been clipped. It is inside the
+  wrapper, which means `bottom-4` now anchors the bottom of the line rather than the bottom of the
+  card and the card lifts by the line's height instead.
+- `r.pct.startsWith("-")` was the old test for the negative color. Deriving `pct` through
+  `pct(t.realizedPnlPct)` keeps that string shape, but the row now carries an explicit
+  `negative: t.realizedPnlPct < 0` boolean, so the color reads the number rather than parsing the
+  formatted string back.
+
+### Files changed
+
+Edited: `app/page.tsx` (dead imports dropped, copy chip rendered, seeded-fixture line added, three
+comment blocks into English), `components/brand/HeroLedger.tsx` (rewritten to derive from the seed;
+tilt, links, bar fill, glow and caret all kept), `components/CopyChip.tsx` (English tooltip and
+comments, `min-h-11`), `components/LoopSteps.tsx` (comment), `components/Reveal.tsx` (comment),
+`app/globals.css` (one comment; the `@theme` block, the type scale, the four keyframes, the
+`.reveal` pair and the reduced-motion block are untouched), `SUBMISSION.md` (one sentence in block
+2), `HANDOFF.md` (this section), `.farm-commits.json`.
+
+Not touched, deliberately: `lib/valve.ts`, `lib/weex.ts`, `lib/agent.ts`, `lib/attribution.ts`,
+everything under `lib/store/` and `app/api/`, `lib/data/seed.json`, `components/DecisionConsole.tsx`,
+`components/DecisionLog.tsx`, `components/ThesisLedger.tsx`, `app/console/page.tsx`,
+`app/evidence/page.tsx`, `DEMO.md`, `DELIVERY.md`, `docs/RESULTS.md`, `docs/VIDEO.md`, `README.md`,
+`package.json`, `.env.example`, `.gitignore`, `next.config.ts`, `tests/`.
+
+Still tombstoned and still needing `git rm`: `lib/data.ts`, `lib/adapter.ts`. Carried forward from
+Phase 8, unchanged.
+
+### Commands run
+
+**None, no shell.** No `npm install`, no `npm run build`, no `npm test`, no dev server, no
+screenshot, no git. Every acceptance item that needs a command is the runner's, and nothing in this
+section claims an output that was not read out of a file.
+
+### Open questions
+
+Written here rather than asked, as the brief directs, and none of them blocked a slice:
+
+- **Should the hero card show the `throttled` state at all?** `TH-VOL-CRUSH` is the thesis DEMO.md
+  step 6 turns red on camera and it is not one of the three the hero shows. Adding it would make the
+  card four rows and change the Phase 8 composition, which this phase may not rebuild, so the
+  throttled branch exists in code and renders nothing today.
+- **Does `lib/data/seed.json` belong in the client bundle?** `HeroLedger` is a client component, so
+  importing `@/lib/data/seed` ships the whole seed file to the browser. It is roughly 7KB of JSON
+  that is already public in the repo and already rendered on `/console`, so nothing is leaked, but a
+  server component passing three rows down as props would be smaller. Not changed, because it would
+  mean editing `app/page.tsx`'s structure for a byte count nobody has measured.
+- Carried forward and unchanged from Phase 8: `focus-visible:ring-inset` in Tailwind v4, the sticky
+  header at 360px, the wordmark in `public/logo.svg`, whether the deployed origin really is
+  `stele-gules.vercel.app`, whether the live deploy has `KV_REST_API_URL` and `KV_REST_API_TOKEN`
+  set, whether the four skill names and the install command are current, whether the 11 step
+  checklist wording is the official one, whether `cmt_ltcusdt` is in the competition universe, whose
+  name goes on the `LICENSE` copyright line, and whether the `New user pool` row is claimable.
+
+### Acceptance gate, checked by reading files
+
+Met:
+
+- **Every import resolves and none is unused.** `components/brand/HeroLedger.tsx` imports `Link`,
+  `useEffect`, `useRef` and `useState`, `account` and `thesisById` from `@/lib/data/seed`, `pct` and
+  `usdt` from `@/lib/format`, and `valveFor` from `@/lib/valve`; all nine are used in the file and
+  all five modules exist.
+  `app/page.tsx` imports `Image`, `Link`, `LedgerPattern`, `HeroLedger`, `LoopSteps`,
+  `Reveal`, `CopyChip`, `buttonClass` and `Card`, and every one appears in the JSX.
+  `CardBody`/`CardTitle` are gone from the file: grep for either name across `app/page.tsx` returns
+  nothing.
+- **The two-column scene is intact.** `app/page.tsx` still has the badge row at `:70-75`, the
+  benefit headline with its accent span at `:77-79`, one lead paragraph at `:81-85`, exactly one
+  primary control into `/console` at `:88-91`, the mono stat strip at `:100-118` and
+  `<HeroLedger />` at `:135`. Line numbers shifted by one against the Phase 8 log because the hero's
+  comment block grew a line when it was translated.
+- **The hero derives from the seed.** Named seed source: `lib/data/seed.ts`, which re-types
+  `lib/data/seed.json`. `HeroLedger.tsx` contains no `"+3.21%"`, `"+1.62%"`, `"-2.14%"`, `"1.25x"`,
+  `"7/11 closed"` or `"round 2 / 5"` literal. The only percent strings left in the file are the bar
+  width template and its `"0%"` start value, both presentational.
+- **The seeded-fixture line is on `/` and outside the card.** `app/page.tsx:136-139`, a `<p>` after
+  `<HeroLedger />`, `font-mono text-[11px] text-mut`, containing the substring
+  `lib/data/seed.json`.
+- **The decorative elements keep their masks.** The monument `Image` at `app/page.tsx:122-130` keeps
+  `[mask-image:radial-gradient(closest-side,black_70%,transparent_100%)]`, `lg:block`, `hidden`,
+  `pointer-events-none`, `aria-hidden` and `-z-10`. `LedgerPattern` at `:66` keeps its
+  `[mask-image:linear-gradient(to_left,black,transparent)]`, `hidden`, `lg:block` and `-z-20`.
+  Neither shares an unmasked bounding area with body text.
+- **Five brand assets, five imports.** `public/brand/stele-monument.png` is rendered by
+  `app/page.tsx:123`; `loop-thesis.png`, `loop-endpoint.png`, `loop-ledger.png` and `loop-valve.png`
+  are the four `img` fields in `STEPS` in `components/LoopSteps.tsx:16,23,30,37` and render through
+  the `Image` at `:73-80`.
+- **Motion is unchanged.** `app/globals.css` still holds `@keyframes fade-up`, `float-y`,
+  `glow-pulse` and `caret-blink`, the `.reveal` / `.reveal.is-visible` pair at `:129-138`, and the
+  `@media (prefers-reduced-motion: reduce)` block at `:140-148` that disables all of them.
+  `HeroLedger` still checks `prefers-reduced-motion` in `onMove` before tilting.
+- **The stepper keeps its semantics.** `components/LoopSteps.tsx` still carries `role="tablist"` with
+  `aria-label` at `:47`, `role="tab"` and `aria-selected` at `:52-53`, `role="tabpanel"` at `:69`, an
+  image-first panel grid at `:72-80`, one sentence per step in `body`, and a mono trace line per
+  step.
+- **`Reveal` is unchanged.** IntersectionObserver at `:24`, `io.disconnect()` on the first
+  intersection at `:29`, and the children are plain JSX in the server tree rather than gated behind
+  state.
+- **`<CopyChip>` is rendered.** `app/page.tsx:166`, with `text="/capi/v3/order/uploadAiLog"`, and its
+  copied state at `components/CopyChip.tsx:30-32` is the visible text `copied` / `copy`, not an
+  icon.
+- **Paragraph density.** Outside the `<details>`, the longest run is two consecutive `<p>` elements:
+  the three stat tiles are number-then-sentence (the third is chip-then-sentence), the three criteria
+  cards are title-then-sentence, and the footer is a link row plus one sentence plus the license
+  line.
+- **The surface is English.** Grep for `Konsolda`, `Kopyala`, `çip`, `görseli`, `sahne`, `anıt`,
+  `kartı` and `bileşeni` across `app/` and `components/` returns nothing, and a grep for Turkish
+  characters across every `.ts`, `.tsx` and `.css` in the tree returns nothing.
+- **No hex literal entered `app/` or `components/`.** The only color values added this phase are the
+  existing `warn`, `ok`, `bad`, `acc`, `mut`, `ink`, `line`, `panel` and `panel2` tokens.
+- **Seed data untouched.** `lib/data/seed.json` still carries six theses, four positions, three
+  markets, five signals and four log records, and `TH-SQZ-LONG` still reads `-2.14` at `:21`. Nothing
+  in this phase wrote to that file, so every demo route is still non-empty with zero environment
+  variables set.
+- **Package.** `<ADD_VIDEO_URL>` is byte identical in `README.md:14`, `README.md:228` and
+  `SUBMISSION.md:165` (it moved down one line when the stack sentence above it grew a line).
+  `SUBMISSION.md` now returns no match for `Python`, `FastAPI`, `SQLite` or
+  `systemd`. `README.md`'s prize cells (`AI Team`, `AI model token ödülü`, `Early bird pool`,
+  `New user pool`) and the HTTP 405 note beneath them are unchanged. Every node in the mermaid block
+  at `README.md:115-133` names a file that exists. The screenshot table at `:265-271` still names
+  `docs/step-1.png` through `docs/step-6.png` and `docs/step-phone.png`, none of which exist, with
+  the sentence at `:273-276` saying they are captured after the redeploy. `docs/VIDEO.md:63-69` still
+  maps shots 1 through 6 to those files and to the six `DEMO.md` steps, and its checkpoints still
+  put the problem by 0:15 and the refusal wow by 1:15.
+- **Hygiene, by reading.** `.gitignore:4-5` still has `.env*` with `!.env.example`. All eleven
+  `process.env.X` reads in the tree have a line in `.env.example` and this phase added none. Grepped
+  `sk-ant-`, and `PASSPHRASE=`, `SECRET=` and `API_KEY=` followed by a value: no match anywhere
+  except the lines in this file that describe the scans.
+- **`docs/RESULTS.md` was not opened for writing.** Every cell still reads `to fill`.
+- **`<ADD_VIDEO_URL>` was not replaced**, and no Meshy asset, route, dependency or environment
+  variable was added.
+
+Unmet, with the evidence that is missing:
+
+- **The build is unverified.** No `npm install`, no `npm run build`, no `npm test`. This phase
+  rewrote one component and edited five more files, and `components/brand/HeroLedger.tsx` gained
+  three cross-module imports into a client component, which is the one change in it that a build can
+  actually reject. TypeScript strict is satisfiable by reading, not proven.
+- **Nothing visual is verified.** No browser, no screenshot, no Lighthouse. The 360px overflow claim,
+  the `lg:bottom-4` anchoring of the seeded-fixture line, whether the copy chip's `min-h-11` looks
+  right inside the accent tile, and whether the hero numbers actually read the same as `/console` on
+  screen are all the runner's to check.
+- **The video URL is still a placeholder.** No take exists.
+- **No account results exist.** `docs/RESULTS.md` is entirely `to fill` and remains the largest
+  scored gap.
+- **The seven screenshots do not exist**, and must be captured after this phase's redeploy.
+- **The Trader Skill install, the allowlist and the Google Form** are account work outside this repo
+  and none of them moved this phase.
+
+### Next best step
+
+`npm install`, then `npm run build`. The one import worth watching is
+`components/brand/HeroLedger.tsx:13-15`: a `"use client"` file importing `@/lib/data/seed`,
+`@/lib/format` and `@/lib/valve`. All three are pure and none touches `node:crypto`, `node:fs` or
+`process.env`, so it should compile, but it is the only structurally new thing in the phase. Then
+kill any stale `next start` by port, redeploy, and open `https://stele-gules.vercel.app/` cold in a
+private window at 1280px and 360px. Check exactly three things on `/`: the hero ledger numbers match
+`/console` row for row, the seeded-fixture line is visible under the card, and the copy chip reports
+`copied`. Then the checklist below, in order.
+
+---
+
+## Manual submit checklist, the current one
+
+This replaces every copy above it, including the Phase 8 one. Item 1 gates 2, 3 and 4; items 5
+through 8 are account work and can run in parallel, and item 8 is the only one that closes the
+return-performance gap two panels have now named.
+
+1. **Redeploy and confirm the origin.** `npm install`, `npm run build`, deploy, then open
+   `https://stele-gules.vercel.app/console` cold. The second line under the header has to read
+   `Ledger source: seeded fixture`. Then open `/` and confirm the line under the hero card reads
+   `Seeded fixture, lib/data/seed.json`. If the deployed origin is not `stele-gules.vercel.app`,
+   correct it in `README.md`, `SUBMISSION.md`, `docs/VIDEO.md`, `scripts/demo-reset.mjs` and by hand
+   at `SITE_URL`, `lib/config.ts:79`, which **no find and replace over the documents will reach**.
+2. **Capture `docs/step-1.png` through `docs/step-6.png` and `docs/step-phone.png`** from the live
+   URL, one per DEMO.md step plus `/console` at 360px width. After the redeploy, never before it.
+3. **Record the 90 second take** against the live URL with `ANTHROPIC_API_KEY` set, so the console
+   header reads "Anthropic API" and not "offline stub". Run `npm run demo:reset` against the live URL
+   immediately before the take, and do the dry run first. Shot list and timing in `docs/VIDEO.md`.
+4. **Upload the video, then replace `<ADD_VIDEO_URL>`** in `README.md` and `SUBMISSION.md`. The token
+   is byte identical in both, so it is one find and replace.
+5. **Install the four WEEX skills on the trading host**:
+   `npx skills add https://github.com/weex-labs/weex-agent-skills --all`. `docs/TRADER-SKILL.md` has
+   the names and the 404 pitfall. This is a competition requirement, not a nicety.
+6. **File the WEEX AI agent partner Google Form**, pasting from `SUBMISSION.md`. Its URL is still
+   UNKNOWN and its closing date is unpublished, so treat it as possibly earlier than
+   2026-09-02 15:59 UTC.
+7. **Confirm the WEEX allowlist** for the trading UID and the server's static IP. Manual approval by
+   WEEX staff, no published turnaround.
+8. **Fill `docs/RESULTS.md`** from the sim run, then from each round as it closes. Every cell reads
+   `to fill` today. **No agent writes a number into that file.** A blank cell is honest; a guessed
+   one is `fabricating AI logs` under the WEEX rules and is disqualifying.
+9. **Code freeze.**
+
+**Code freeze, in full.** After the video is recorded, any change to the site desyncs the take from
+the live URL and is **forbidden**. That includes a one word copy fix and a spacing tweak. Late
+findings go into this file, and where honesty requires it, into a known-gap line in `SUBMISSION.md`.
+Nothing else lands. Deadline 2026-09-02 15:59 UTC.
