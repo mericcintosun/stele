@@ -98,7 +98,7 @@ export const ALLOWED_SYMBOLS = [
   "cmt_bnbusdt",
   "cmt_dogeusdt",
   "cmt_adausdt",
-  "cmt_linkusdt",
+  "cmt_ltcusdt",
 ] as const;
 
 export type AllowedSymbol = (typeof ALLOWED_SYMBOLS)[number];
