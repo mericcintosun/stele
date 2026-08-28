@@ -54,7 +54,7 @@ export function ConsoleErrorState({ message, onRetry, busy = false }: RetryProps
           type="button"
           onClick={onRetry}
           disabled={busy}
-          className="rounded-lg border border-bad/50 px-3 py-1.5 text-xs font-semibold text-bad transition-opacity hover:opacity-80 disabled:opacity-40"
+          className="inline-flex min-h-11 items-center rounded-lg border border-bad/50 px-4 text-xs font-semibold text-bad transition-opacity hover:opacity-80 disabled:opacity-40"
         >
           {busy ? "Reading the round…" : "Reload the round"}
         </button>
@@ -76,7 +76,7 @@ export function SignalQueueEmptyState({ onReset, busy = false }: EmptyProps) {
         type="button"
         onClick={onReset}
         disabled={busy}
-        className="rounded-lg bg-acc px-3 py-1.5 text-xs font-semibold text-bg transition-opacity hover:opacity-90 disabled:opacity-40"
+        className="inline-flex min-h-11 items-center rounded-lg bg-acc px-4 text-xs font-semibold text-bg transition-opacity hover:opacity-90 disabled:opacity-40"
       >
         {busy ? "Resetting the round…" : "Reset round and run the sequence again"}
       </button>

@@ -38,14 +38,18 @@ export default function ThesisLedger({
               <button
                 type="button"
                 onClick={() => onSelect(t.id)}
-                className={`w-full px-4 py-3 text-left transition-colors ${
+                className={`min-h-11 w-full px-4 py-3 text-left transition-colors ${
                   selected ? "bg-panel2" : "hover:bg-panel2/60"
                 } ${halted ? "opacity-60" : ""}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{t.name}</p>
-                    <p className="mt-0.5 font-mono text-[11px] text-mut">{t.id}</p>
+                    <p className="truncate text-sm font-medium" title={t.name}>
+                      {t.name}
+                    </p>
+                    <p className="mt-0.5 truncate font-mono text-[11px] text-mut" title={t.id}>
+                      {t.id}
+                    </p>
                   </div>
                   <span
                     className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${STATE_STYLE[valve.state]}`}

@@ -12,16 +12,25 @@ export default function Error({ reset }: { error: Error; reset: () => void }) {
         The decision loop itself is unaffected. Retry, or go back to the console and run the signal
         queue again.
       </p>
-      <div className="flex flex-wrap items-center justify-center gap-4">
+      <div className="flex flex-wrap items-center justify-center gap-3">
         <button
           type="button"
           onClick={() => reset()}
-          className="rounded-lg bg-acc px-4 py-2 text-sm font-semibold text-bg"
+          className="inline-flex min-h-11 items-center rounded-lg bg-acc px-5 text-sm font-semibold text-bg"
         >
           Try again
         </button>
-        <Link href="/console" className="text-sm text-acc hover:underline">
+        <Link
+          href="/console"
+          className="inline-flex min-h-11 items-center px-3 text-sm text-acc hover:underline"
+        >
           Back to the decision console
+        </Link>
+        <Link
+          href="/"
+          className="inline-flex min-h-11 items-center px-3 text-sm text-mut hover:text-acc"
+        >
+          Back to the overview
         </Link>
       </div>
     </div>
